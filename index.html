@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kingsway Group – Delivery Note Tool</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg: #0f0f11;
+    --surface: #18181c;
+    --surface2: #222228;
+    --border: #2e2e38;
+    --accent: #e8c547;
+    --accent2: #5be3a6;
+    --danger: #ff5e5e;
+    --warn: #ffa94d;
+    --text: #f0eff6;
+    --muted: #7d7c8e;
+    --radius: 8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+  }
+
+  /* HEADER */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .logo {
+    font-weight: 800;
+    font-size: 15px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .logo span { color: var(--text); }
+  header nav { display: flex; gap: 8px; }
+  .nav-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 6px 14px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    transition: all .15s;
+  }
+  .nav-btn:hover, .nav-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* LAYOUT */
+  .app { display: flex; height: calc(100vh - 60px); overflow: hidden; }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 340px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .sidebar-section {
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-section-title {
+    padding: 14px 20px 10px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .sidebar-section-title::after {
+    content:'';
+    flex:1;
+    height:1px;
+    background: var(--border);
+  }
+
+  /* FORM ELEMENTS */
+  .field {
+    padding: 6px 20px;
+  }
+  .field label {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 4px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+  .field input, .field select, .field textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 10px;
+    border-radius: var(--radius);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    transition: border-color .15s;
+    outline: none;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    border-color: var(--accent);
+  }
+  .field input.warn { border-color: var(--warn); }
+  .field input.error { border-color: var(--danger); }
+  .field select option { background: var(--surface2); }
+  .field textarea { resize: vertical; min-height: 56px; }
+  .field-row { display: flex; gap: 8px; }
+  .field-row .field { flex: 1; padding: 6px 0; }
+  .field-row .field:first-child { padding-left: 20px; }
+  .field-row .field:last-child { padding-right: 20px; }
+  .notice-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    margin-top: 4px;
+    font-family: 'DM Mono', monospace;
+  }
+  .notice-chip.ok { background: #1a3b2e; color: var(--accent2); }
+  .notice-chip.warn { background: #3b2d1a; color: var(--warn); }
+  .notice-chip.err { background: #3b1a1a; color: var(--danger); }
+
+  /* DOOR TABLE */
+  .door-table-wrap {
+    padding: 0 20px 12px;
+    overflow-x: auto;
+  }
+  table.door-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    font-family: 'DM Mono', monospace;
+  }
+  .door-table th {
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 4px 4px;
+    text-align: left;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--border);
+  }
+  .door-table td {
+    padding: 3px 2px;
+  }
+  .door-table td input, .door-table td select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 4px;
+    padding: 4px 5px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    width: 100%;
+    outline: none;
+    transition: border-color .15s;
+  }
+  .door-table td input:focus, .door-table td select:focus { border-color: var(--accent); }
+  .door-table td input.err-cell { border-color: var(--danger); background: #3b1a1a22; }
+  .door-table td input.warn-cell { border-color: var(--warn); background: #3b2d1a22; }
+  .door-table td select option { background: #18181c; }
+
+  .add-row-btn, .del-row-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: background .1s;
+    line-height: 1;
+  }
+  .add-row-btn { color: var(--accent2); }
+  .add-row-btn:hover { background: #1a3b2e; }
+  .del-row-btn { color: var(--danger); }
+  .del-row-btn:hover { background: #3b1a1a; }
+
+  .table-actions { padding: 6px 20px; display: flex; gap: 8px; align-items: center; }
+  .btn-ghost {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 5px 12px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    transition: all .15s;
+  }
+  .btn-ghost:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  /* COMPONENTS TABLE */
+  .comp-table-wrap {
+    padding: 0 20px 12px;
+    overflow-x: auto;
+  }
+  table.comp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    font-family: 'DM Mono', monospace;
+  }
+  .comp-table th {
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 4px 4px;
+    text-align: left;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--border);
+  }
+  .comp-table td { padding: 3px 2px; }
+  .comp-table td input, .comp-table td select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 4px;
+    padding: 4px 5px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    width: 100%;
+    outline: none;
+    transition: border-color .15s;
+  }
+  .comp-table td input:focus, .comp-table td select:focus { border-color: var(--accent); }
+  .comp-table td input.err-cell { border-color: var(--danger); background: #3b1a1a22; }
+  .comp-desc { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; padding: 0 4px; }
+  .alert-cell { font-size: 10px; max-width: 120px; white-space: normal; color: var(--warn); }
+
+  /* VALIDATION PANEL */
+  .validation-bar {
+    padding: 10px 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+  }
+  .val-chip {
+    padding: 4px 10px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .val-chip.ok { background: #1a3b2e; color: var(--accent2); }
+  .val-chip.warn { background: #3b2d1a; color: var(--warn); }
+  .val-chip.err { background: #3b1a1a; color: var(--danger); }
+
+  /* MAIN PREVIEW */
+  .main-panel {
+    flex: 1;
+    overflow-y: auto;
+    padding: 32px;
+    background: var(--bg);
+  }
+
+  .generate-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .btn-generate {
+    background: var(--accent);
+    color: #0f0f11;
+    border: none;
+    padding: 10px 24px;
+    border-radius: var(--radius);
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    letter-spacing: 0.03em;
+    transition: opacity .15s;
+  }
+  .btn-generate:hover { opacity: 0.88; }
+  .btn-print {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 20px;
+    border-radius: var(--radius);
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .btn-print:hover { border-color: var(--text); }
+
+  /* DN PREVIEW */
+  .dn-preview {
+    background: #fff;
+    color: #1a1a1a;
+    border-radius: 4px;
+    padding: 40px;
+    max-width: 860px;
+    margin: 0 auto;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 12px;
+    line-height: 1.5;
+    box-shadow: 0 4px 40px rgba(0,0,0,0.6);
+  }
+
+  /* DN styles */
+  .dn-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+  .dn-title { font-size: 22px; font-weight: 700; color: #1a1a1a; margin-bottom: 2px; }
+  .dn-subtitle { font-size: 11px; color: #666; }
+  .dn-logo { font-size: 11px; font-weight: 700; color: #555; text-align: right; letter-spacing: 0.08em; }
+  .dn-meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  .dn-box {
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 12px 14px;
+  }
+  .dn-box-title {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #888;
+    margin-bottom: 8px;
+  }
+  .dn-row { display: flex; margin-bottom: 3px; }
+  .dn-label { width: 120px; font-weight: 600; color: #444; flex-shrink: 0; font-size: 11px; }
+  .dn-value { color: #1a1a1a; font-size: 11px; }
+  .dn-divider { border: none; border-top: 2px solid #ddd; margin: 16px 0; }
+  .dn-section-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #555;
+    background: #f5f5f5;
+    padding: 5px 8px;
+    border-left: 3px solid #333;
+    margin-bottom: 8px;
+  }
+  .dn-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+  .dn-table th {
+    background: #1a1a1a;
+    color: #fff;
+    padding: 6px 8px;
+    font-size: 10px;
+    text-align: left;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .dn-table td { padding: 5px 8px; border-bottom: 1px solid #eee; font-size: 11px; }
+  .dn-table tr:nth-child(even) td { background: #fafafa; }
+  .dn-goods { font-size: 11px; color: #333; padding: 8px 10px; background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 3px; }
+  .dn-notice { font-size: 10px; color: #888; border-top: 1px solid #ddd; padding-top: 12px; margin-top: 16px; }
+  .dn-ref-chip {
+    display: inline-block;
+    background: #1a1a1a;
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 2px;
+    font-weight: 700;
+    font-size: 11px;
+  }
+  .dn-version-chip {
+    display: inline-block;
+    background: #eee;
+    color: #555;
+    padding: 2px 8px;
+    border-radius: 2px;
+    font-size: 10px;
+    margin-left: 6px;
+  }
+  .dn-addr { line-height: 1.7; font-size: 11px; }
+  .dn-logistics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+
+  /* GOODS block in right column */
+  .dn-right { }
+
+  /* PRINT */
+  @media print {
+    body { background: #fff; }
+    header, .sidebar, .generate-bar, .btn-print { display: none !important; }
+    .app { display: block; height: auto; overflow: visible; }
+    .main-panel { padding: 0; overflow: visible; }
+    .dn-preview { box-shadow: none; padding: 20px; max-width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Kingsway <span>Group</span> — Delivery Note Tool</div>
+  <nav>
+    <button class="nav-btn active" onclick="showTab('form')">Configure</button>
+    <button class="nav-btn" onclick="showTab('preview')">Preview / Print</button>
+  </nav>
+</header>
+
+<div class="app" id="app">
+  <!-- SIDEBAR: FORM -->
+  <div class="sidebar" id="sidebar">
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Project Details</div>
+      <div class="field"><label>Project Name</label><input id="projectName" type="text" placeholder="e.g. Hillside Care Home"></div>
+      <div class="field-row">
+        <div class="field"><label>Project Reference</label><input id="projectRef" type="text" placeholder="KW-2024-001"></div>
+        <div class="field"><label>Phase</label><input id="phase" type="text" placeholder="1"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Sales Order Ref</label><input id="salesOrderRef" type="text" placeholder="SO-12345"></div>
+        <div class="field"><label>Version</label><input id="version" type="number" value="0" min="0"></div>
+      </div>
+      <div class="field"><label>KG Project Manager</label><input id="kgPM" type="text" placeholder="Full name"></div>
+      <div class="field"><label>Site Contact</label><input id="siteContact" type="text" placeholder="Full name"></div>
+      <div style="padding:6px 20px 10px;">
+        <label style="font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.04em;display:block;margin-bottom:4px;">Delivery Date</label>
+        <input id="deliveryDate" type="date" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-family:'DM Mono',monospace;font-size:13px;outline:none;">
+        <div id="noticeChip"></div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Delivery Address</div>
+      <div class="field"><label>Company Name</label><input id="companyName" type="text"></div>
+      <div class="field"><label>Address Line 1</label><input id="addr1" type="text"></div>
+      <div class="field"><label>Address Line 2</label><input id="addr2" type="text"></div>
+      <div class="field"><label>Address Line 3</label><input id="addr3" type="text"></div>
+      <div class="field-row">
+        <div class="field"><label>Town</label><input id="town" type="text"></div>
+        <div class="field"><label>County</label><input id="county" type="text"></div>
+      </div>
+      <div class="field"><label>Postcode</label><input id="postcode" type="text"></div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Logistics</div>
+      <div class="field-row">
+        <div class="field"><label>Collection Date</label><input id="collectionDate" type="date" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:var(--radius);font-family:'DM Mono',monospace;font-size:13px;outline:none;padding:8px 10px;width:100%;"></div>
+        <div class="field"><label>Collection Time</label><input id="collectionTime" type="time" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:var(--radius);font-family:'DM Mono',monospace;font-size:13px;outline:none;padding:8px 10px;width:100%;"></div>
+      </div>
+      <div class="field">
+        <label>Unload Capability</label>
+        <select id="unloadCap">
+          <option value="">— Select —</option>
+          <option>FLT On Site</option>
+          <option>FLT Required</option>
+          <option>Tail Lift Required</option>
+          <option>Hand Unload</option>
+          <option>Crane Required</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Transport Type</label>
+        <select id="transportType">
+          <option value="">— Select —</option>
+          <option>7.5T</option>
+          <option>18T</option>
+          <option>Artic</option>
+          <option>Van</option>
+          <option>3rd Party Carrier</option>
+        </select>
+      </div>
+      <div class="field"><label>Goods Supplied</label><textarea id="goodsSupplied" rows="2" placeholder="e.g. 8 x Door Packs, Components"></textarea></div>
+    </div>
+
+    <!-- SECTION 1: DOORS -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Section 1 – Doors</div>
+      <div id="doorValidation" class="validation-bar"></div>
+      <div class="door-table-wrap">
+        <table class="door-table" id="doorTable">
+          <thead>
+            <tr>
+              <th>Qty</th>
+              <th>Code</th>
+              <th>Pack</th>
+              <th>Room</th>
+              <th>Type</th>
+              <th>Fire</th>
+              <th>Finish</th>
+              <th>DTM</th>
+              <th>Lock</th>
+              <th>Notes</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="doorBody"></tbody>
+        </table>
+      </div>
+      <div class="table-actions">
+        <button class="btn-ghost" onclick="addDoorRow()">+ Add Door</button>
+      </div>
+    </div>
+
+    <!-- SECTION 2: COMPONENTS -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Section 2 – Components</div>
+      <div id="compValidation" class="validation-bar"></div>
+      <div class="comp-table-wrap">
+        <table class="comp-table" id="compTable">
+          <thead>
+            <tr>
+              <th>Qty</th>
+              <th>Code</th>
+              <th>Description</th>
+              <th>Notes</th>
+              <th>⚠</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="compBody"></tbody>
+        </table>
+      </div>
+      <div class="table-actions">
+        <button class="btn-ghost" onclick="addCompRow()">+ Add Component</button>
+        <button class="btn-ghost" onclick="autoPopulateComponents()">⚡ Auto-fill from Doors</button>
+      </div>
+    </div>
+
+  </div><!-- /sidebar -->
+
+  <!-- MAIN PANEL -->
+  <div class="main-panel" id="mainPanel">
+    <div class="generate-bar">
+      <button class="btn-generate" onclick="generateDN()">⚡ Generate Delivery Note</button>
+      <button class="btn-print" onclick="window.print()">🖨 Print / Save PDF</button>
+    </div>
+    <div id="dnPreviewContainer">
+      <div style="color:var(--muted);font-size:14px;text-align:center;padding-top:80px;font-family:'DM Mono',monospace;">
+        Fill in the form and click <strong style="color:var(--accent)">Generate Delivery Note</strong> to preview
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════
+// ITEM DATABASE (from Item List sheet)
+// ═══════════════════════════════════════
+const ITEM_DB = {
+  'Arc03': 'Standard Architrave 70x20mm',
+  'Arc03 Primed': 'Primed Beech Architrave',
+  '70x20 FLAT': 'Flat Architrave 70x20mm',
+  '70x20 4mm rebate': 'Architrave with 4mm rebate',
+  '70x20 8mm rebate': 'Architrave with 8mm rebate',
+  'Quadrant': 'Quadrant Architrave',
+  'SSA01': 'Stainless Steel Internal One-Piece Architrave',
+  'Fixing Pack SS': 'Fixing Pack for Stainless Steel Arch',
+  'Pellets 8mm': '8mm Pellets (Oak/Ash/Beech)',
+  'Pellets 13mm': '13mm Pellets (Oak/Ash/Beech)',
+  'Pellets 13mm Acrovyn': '13mm Acrovyn Pellets',
+  'Intumescent Brown 15x4mm brush': 'Brown 15x4mm Brush Intumescent',
+  'Intumescent White 15x4mm brush': 'White 15x4mm Brush Intumescent',
+  'Intumescent 15x4mm plain': '15x4mm Plain Intumescent',
+  'Intumescent Brown 10x4mm brush': 'Brown 10x4mm Brush Intumescent',
+  'Intumescent White 10x4mm brush': 'White 10x4mm Brush Intumescent',
+  'Intumescent 10x4mm plain': '10x4mm Plain Intumescent',
+  'Intumescent Brown 30x4mm single fin': 'Brown 30x4mm Single Fin',
+  'Intumescent White 30x4mm single fin': 'White 30x4mm Single Fin',
+  'INT001.W': 'Double Fin Smoke Seal',
+  'INT018': '10x4 Brown intumescent with 7mm grey brush',
+  'Cylinder Bolt M5 x 90mm': 'Standard Cylinder Bolt',
+  'Cylinder Bolt M5 x 130mm': 'Extended Cylinder Bolt',
+  'KG115.S': 'Key Square',
+  'KG115.O': 'Key Oval',
+  'KG117.O': 'T-Bar Override Key Oval',
+  'KG117.S': 'T-Bar Override Key Square',
+  'KG171': 'Cylinder Key',
+  'KG515 K-ATI': 'Interface Unit (PoE, KG512 in door)',
+  'KG545 K-ATI': 'Interface Unit (Fused Spur, KG512 in door)',
+  'KG546 K-ATI': 'Interface Unit (Fused Spur, EOL in door)',
+  'MAG04-01': 'North Magnet 25x20mm',
+  'MAG04-02': 'South Magnet 25x20mm',
+  'KG153': 'Magnet Cover',
+  'KG64': 'Deadbolt Keep',
+  'KG187': 'Door Stop',
+  'KG23': 'Single Action Overhead Door Closer',
+  'KG23(E)': 'Single Action Overhead Door Closer (Enhanced)',
+  'KG24': 'Door Closer',
+  'KPS013': 'FD30S Fire Door Disc',
+  'KPS014': 'FD60S Fire Door Disc',
+  'KPS015': 'NFR Non Fire Rated Disc',
+  'KPS016': 'FD30 Fire Door Disc',
+  'SM02': 'Floor Keep Receiver',
+  'KDT01': 'Threshold Plate Type 1',
+  'KDT02': 'Threshold Plate Type 2',
+  'KDTT01': 'Threshold Strip',
+  'FAW44': 'Fold-Away Frame Profile',
+  'KG147': 'Kingsway Single Action Strike',
+  'KG156': 'STOW Component Option 1',
+  'KG157': 'STOW Component Option 2',
+  'KG158': 'STOW Component Option 3',
+  'PB01': 'Plinth Block',
+  'KG129': 'Standard Lock',
+  'KG129(B)': 'Extended Backset Lock',
+  'KG129 Extended': 'Extended Backset Lock',
+  'KG130': 'Rollerbolt Lock',
+  'KG512': 'DTM/DLM Lock',
+  'Blue 60 Fire Foam': 'Fire Foam',
+  'Antipick White': 'Antipick Sealant White',
+  'Antipick Grey': 'Antipick Sealant Grey',
+  'Packers 1mm': 'Intumescent Packers 1mm',
+  'Packers 3mm': 'Intumescent Packers 3mm',
+  'Packers 5mm': 'Intumescent Packers 5mm',
+  'KPB016': 'Grey Brush Strip 4.8 900',
+};
+
+// All valid codes for autocomplete
+const ALL_CODES = Object.keys(ITEM_DB);
+
+const DOOR_TYPES = ['Single', 'Double', 'Leaf&Half'];
+const FIRE_RATINGS = ['FD30', 'FD60', 'NFR'];
+const FRAME_FINISHES = ['Primed', 'Oak', 'Ash', 'Beech', 'Acrovyn', 'Stainless Steel'];
+const LOCK_TYPES = ['Standard', 'KG129', 'KG129(B)', 'KG512', 'KG130', 'None'];
+
+// ═══════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════
+let doorRows = [];
+let compRows = [];
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+window.onload = () => {
+  // Seed with example data from the Excel
+  doorRows = [
+    { qty: 1, code: 'DL.04',  pack: 1, room: 'Bedroom',            type: 'Single', fire: 'FD30', finish: 'Oak',  dtm: 'No',  lock: 'Standard', notes: '' },
+    { qty: 1, code: 'DL.04B', pack: 1, room: 'Bedroom',            type: 'Single', fire: 'FD30', finish: 'Oak',  dtm: 'No',  lock: 'Standard', notes: '' },
+    { qty: 1, code: 'DL.03',  pack: 2, room: 'Sensory Room',       type: 'Single', fire: 'FD30', finish: 'Oak',  dtm: 'No',  lock: 'Standard', notes: '' },
+    { qty: 1, code: 'DL.04C', pack: 2, room: 'Corridor 01',        type: 'Single', fire: 'FD30', finish: 'Oak',  dtm: 'No',  lock: 'Standard', notes: '' },
+    { qty: 1, code: 'DL.03C', pack: 3, room: 'Communications Door',type: 'Single', fire: 'FD30', finish: 'Oak',  dtm: 'No',  lock: 'Standard', notes: '' },
+    { qty: 1, code: 'DL.04L', pack: 4, room: 'Laundry',            type: 'Single', fire: 'FD30', finish: 'Oak',  dtm: 'No',  lock: 'Standard', notes: '' },
+    { qty: 1, code: 'DL.04H', pack: 6, room: 'Door H',             type: 'Single', fire: 'FD30', finish: 'Oak',  dtm: 'No',  lock: 'Standard', notes: '' },
+    { qty: 1, code: 'DL.03CO',pack: 5, room: 'Corridor 02',        type: 'Single', fire: 'FD30', finish: 'Oak',  dtm: 'No',  lock: 'Standard', notes: '' },
+  ];
+
+  compRows = [
+    { qty: 40, code: 'Arc03',                           notes: '' },
+    { qty: 0,  code: 'Pellets 8mm',                    notes: '' },
+    { qty: 0,  code: 'Pellets 13mm',                   notes: '' },
+    { qty: 8,  code: 'Cylinder Bolt M5 x 90mm',        notes: '' },
+    { qty: 0,  code: 'Cylinder Bolt M5 x 130mm',       notes: '' },
+    { qty: 16, code: 'Intumescent Brown 15x4mm brush', notes: '' },
+    { qty: 20, code: 'KG115.S',                         notes: '' },
+    { qty: 1,  code: 'KG23',                            notes: '' },
+    { qty: 0,  code: 'KPS013',                          notes: '' },
+    { qty: 0,  code: 'KPS014',                          notes: '' },
+    { qty: 0,  code: 'KPS015',                          notes: '' },
+  ];
+
+  // Set defaults
+  document.getElementById('projectName').value = 'Kingsway Group Project';
+  document.getElementById('kgPM').value = '';
+  document.getElementById('version').value = 0;
+  document.getElementById('deliveryDate').value = new Date().toISOString().split('T')[0];
+
+  renderDoorTable();
+  renderCompTable();
+  updateDeliveryNotice();
+  validateAll();
+};
+
+// ═══════════════════════════════════════
+// TAB NAVIGATION
+// ═══════════════════════════════════════
+function showTab(tab) {
+  const btns = document.querySelectorAll('.nav-btn');
+  btns.forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('sidebar').style.display = tab === 'form' ? '' : 'none';
+  if (tab === 'preview') generateDN();
+}
+
+// ═══════════════════════════════════════
+// DELIVERY DATE NOTICE
+// ═══════════════════════════════════════
+function updateDeliveryNotice() {
+  const dateVal = document.getElementById('deliveryDate').value;
+  const chip = document.getElementById('noticeChip');
+  if (!dateVal) { chip.innerHTML = '<span class="notice-chip warn">⚠️ Enter delivery date</span>'; return; }
+  const today = new Date(); today.setHours(0,0,0,0);
+  const del = new Date(dateVal);
+  const diff = (del - today) / (1000*60*60*24);
+  if (diff < 2) chip.innerHTML = '<span class="notice-chip warn">⚠️ Less than 48hrs notice</span>';
+  else chip.innerHTML = '<span class="notice-chip ok">✅ 48hrs+ notice</span>';
+}
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('deliveryDate').addEventListener('change', updateDeliveryNotice);
+});
+
+// ═══════════════════════════════════════
+// DOOR TABLE
+// ═══════════════════════════════════════
+function renderDoorTable() {
+  const tbody = document.getElementById('doorBody');
+  tbody.innerHTML = '';
+  doorRows.forEach((row, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="number" value="${row.qty}" min="1" style="width:44px" onchange="doorRows[${i}].qty=+this.value;validateAll()"></td>
+      <td><input type="text" value="${row.code}" style="width:62px" onchange="doorRows[${i}].code=this.value.trim();validateAll()"></td>
+      <td><input type="number" value="${row.pack}" min="1" style="width:38px" onchange="doorRows[${i}].pack=+this.value;validateAll()"></td>
+      <td><input type="text" value="${row.room}" style="width:90px" onchange="doorRows[${i}].room=this.value;validateAll()"></td>
+      <td>
+        <select style="width:80px" onchange="doorRows[${i}].type=this.value;validateAll()">
+          ${DOOR_TYPES.map(t=>`<option ${t===row.type?'selected':''}>${t}</option>`).join('')}
+        </select>
+      </td>
+      <td>
+        <select style="width:54px" onchange="doorRows[${i}].fire=this.value;validateAll()">
+          ${FIRE_RATINGS.map(f=>`<option ${f===row.fire?'selected':''}>${f}</option>`).join('')}
+        </select>
+      </td>
+      <td>
+        <select style="width:90px" onchange="doorRows[${i}].finish=this.value;validateAll()">
+          ${FRAME_FINISHES.map(f=>`<option ${f===row.finish?'selected':''}>${f}</option>`).join('')}
+        </select>
+      </td>
+      <td>
+        <select style="width:54px" onchange="doorRows[${i}].dtm=this.value;validateAll()">
+          <option ${row.dtm==='No'?'selected':''}>No</option>
+          <option ${row.dtm==='Yes'?'selected':''}>Yes</option>
+        </select>
+      </td>
+      <td>
+        <select style="width:80px" onchange="doorRows[${i}].lock=this.value;validateAll()">
+          ${LOCK_TYPES.map(l=>`<option ${l===row.lock?'selected':''}>${l}</option>`).join('')}
+        </select>
+      </td>
+      <td><input type="text" value="${row.notes||''}" style="width:80px" onchange="doorRows[${i}].notes=this.value"></td>
+      <td><button class="del-row-btn" onclick="deleteDoorRow(${i})">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  validateDoors();
+}
+
+function addDoorRow() {
+  doorRows.push({ qty: 1, code: '', pack: doorRows.length+1, room: '', type: 'Single', fire: 'FD30', finish: 'Oak', dtm: 'No', lock: 'Standard', notes: '' });
+  renderDoorTable();
+}
+
+function deleteDoorRow(i) {
+  doorRows.splice(i, 1);
+  renderDoorTable();
+  renderCompTable();
+}
+
+// ═══════════════════════════════════════
+// COMPONENTS TABLE
+// ═══════════════════════════════════════
+function renderCompTable() {
+  const tbody = document.getElementById('compBody');
+  tbody.innerHTML = '';
+  compRows.forEach((row, i) => {
+    const desc = ITEM_DB[row.code] || '';
+    const alert = getCompAlert(row, i);
+    const alertHtml = alert ? `<span class="alert-cell">${alert}</span>` : '<span style="color:#3b3b45;font-size:10px;">—</span>';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="number" value="${row.qty}" min="0" style="width:52px" ${row.qty===0?'class="err-cell"':''} onchange="compRows[${i}].qty=+this.value;renderCompTable();validateAll()"></td>
+      <td>
+        <input type="text" value="${row.code}" style="width:160px" list="codeList" onchange="compRows[${i}].code=this.value.trim();renderCompTable();validateAll()">
+      </td>
+      <td><div class="comp-desc" title="${desc}">${desc || '—'}</div></td>
+      <td><input type="text" value="${row.notes||''}" style="width:80px" onchange="compRows[${i}].notes=this.value"></td>
+      <td>${alertHtml}</td>
+      <td><button class="del-row-btn" onclick="deleteCompRow(${i})">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  validateComponents();
+}
+
+function addCompRow() {
+  compRows.push({ qty: 0, code: '', notes: '' });
+  renderCompTable();
+}
+
+function deleteCompRow(i) {
+  compRows.splice(i, 1);
+  renderCompTable();
+}
+
+// ═══════════════════════════════════════
+// VALIDATION
+// ═══════════════════════════════════════
+function validateDoors() {
+  const panel = document.getElementById('doorValidation');
+  const errors = [];
+  doorRows.forEach((r, i) => {
+    if (!r.code) errors.push(`Row ${i+1}: missing code`);
+    if (!r.room) errors.push(`Row ${i+1}: missing room`);
+    if (r.qty < 1) errors.push(`Row ${i+1}: invalid qty`);
+    // DTM with no interface in components
+    if (r.dtm === 'Yes') {
+      const hasInterface = compRows.some(c => ['KG515 K-ATI','KG545 K-ATI','KG546 K-ATI'].includes(c.code) && c.qty > 0);
+      if (!hasInterface) errors.push(`Door ${r.code}: DTM door but no interface unit in components`);
+    }
+  });
+  if (errors.length === 0) {
+    panel.innerHTML = '<span class="val-chip ok">✅ All door data valid</span>';
+  } else {
+    panel.innerHTML = errors.map(e => `<span class="val-chip err">❌ ${e}</span>`).join('');
+  }
+}
+
+function getCompAlert(row, i) {
+  const alerts = [];
+  const allFinishes = doorRows.map(d => d.finish);
+  const hasPrimed = allFinishes.some(f => f === 'Primed');
+  const allPrimed = allFinishes.length > 0 && allFinishes.every(f => f === 'Primed');
+
+  if (row.code === 'Pellets 8mm' && allPrimed) alerts.push('⚠️ All frames Primed — no 8mm pellets needed');
+  if (row.code === 'Pellets 13mm' && allPrimed) alerts.push('⚠️ All frames Primed — no 13mm pellets needed');
+  if (row.code && row.code.startsWith('KG115') && row.qty > 0 && row.qty < 20) alerts.push('⚠️ Low key qty (typically 20 or 50)');
+  if (row.code === 'Cylinder Bolt M5 x 90mm' && row.qty !== doorRows.length && doorRows.length > 0) alerts.push(`⚠️ Bolts (${row.qty}) don't match door count (${doorRows.length})`);
+  if (['KG515 K-ATI','KG545 K-ATI','KG546 K-ATI'].includes(row.code) && !doorRows.some(d => d.dtm === 'Yes')) alerts.push('⚠️ Interface unit but no DTM doors');
+  if (row.code === 'KG64') {
+    const doubleCount = doorRows.filter(d => d.type === 'Double' || d.type === 'Leaf&Half').reduce((s,d) => s+d.qty, 0);
+    if (row.qty !== doubleCount) alerts.push(`⚠️ KG64 qty (${row.qty}) doesn't match Double/L&H count (${doubleCount})`);
+  }
+  return alerts.join(' ');
+}
+
+function validateComponents() {
+  const panel = document.getElementById('compValidation');
+  const errors = [];
+  const warns = [];
+  compRows.forEach((r, i) => {
+    if (r.code && !ITEM_DB[r.code]) warns.push(`Row ${i+1}: unknown code "${r.code}"`);
+    if (r.qty < 0) errors.push(`Row ${i+1}: invalid qty`);
+    const alert = getCompAlert(r, i);
+    if (alert) warns.push(alert);
+  });
+  let html = '';
+  if (errors.length > 0) html += errors.map(e => `<span class="val-chip err">❌ ${e}</span>`).join('');
+  if (warns.length > 0 && errors.length === 0) html += '<span class="val-chip warn">⚠️ Check alerts above</span>';
+  if (errors.length === 0 && warns.length === 0) html = '<span class="val-chip ok">✅ All components valid</span>';
+  panel.innerHTML = html;
+}
+
+function validateAll() {
+  validateDoors();
+  validateComponents();
+}
+
+// ═══════════════════════════════════════
+// AUTO-POPULATE COMPONENTS FROM DOORS
+// ═══════════════════════════════════════
+function autoPopulateComponents() {
+  const doors = doorRows.filter(d => d.code);
+  const totalDoors = doors.reduce((s,d) => s+d.qty, 0);
+  const finishedDoors = doors.filter(d => d.finish !== 'Primed' && d.finish !== 'Acrovyn');
+  const finishedCount = finishedDoors.reduce((s,d) => s+d.qty, 0);
+  const acrovynCount = doors.filter(d => d.finish === 'Acrovyn').reduce((s,d) => s+d.qty, 0);
+  const primedCount = doors.filter(d => d.finish === 'Primed').reduce((s,d) => s+d.qty, 0);
+  const doubleCount = doors.filter(d => d.type === 'Double' || d.type === 'Leaf&Half').reduce((s,d) => s+d.qty, 0);
+  const dtmCount = doors.filter(d => d.dtm === 'Yes').reduce((s,d) => s+d.qty, 0);
+  const fd30Count = doors.filter(d => d.fire === 'FD30').reduce((s,d) => s+d.qty, 0);
+  const fd60Count = doors.filter(d => d.fire === 'FD60').reduce((s,d) => s+d.qty, 0);
+  const nfrCount  = doors.filter(d => d.fire === 'NFR').reduce((s,d) => s+d.qty, 0);
+  const doorCount = totalDoors;
+
+  const suggested = [];
+
+  // Architraves
+  if (totalDoors > 0) suggested.push({ qty: totalDoors * 5, code: 'Arc03', notes: '' });
+
+  // Pellets - 40 per pre-finished door (8mm for architrave), 13mm for frame
+  const pellets8qty = finishedCount * 40;
+  const pellets13qty = finishedCount * 40 + acrovynCount * 80;
+  if (pellets8qty > 0) suggested.push({ qty: pellets8qty, code: 'Pellets 8mm', notes: '' });
+  if (pellets13qty > 0) suggested.push({ qty: pellets13qty, code: 'Pellets 13mm', notes: '' });
+
+  // Intumescent - pre-finished uses brown, primed uses white
+  if (finishedCount > 0) suggested.push({ qty: finishedCount * 2, code: 'Intumescent Brown 15x4mm brush', notes: '' });
+  if (primedCount > 0) suggested.push({ qty: primedCount * 2, code: 'Intumescent White 15x4mm brush', notes: '' });
+  if (fd60Count > 0) suggested.push({ qty: fd60Count * 2, code: 'Intumescent 15x4mm plain', notes: '' });
+
+  // Cylinder bolts - 1 per door
+  suggested.push({ qty: doorCount, code: 'Cylinder Bolt M5 x 90mm', notes: '' });
+
+  // KG64 - 1 per double/L&H
+  if (doubleCount > 0) suggested.push({ qty: doubleCount, code: 'KG64', notes: '' });
+
+  // Fire door discs
+  if (fd30Count > 0) suggested.push({ qty: fd30Count, code: 'KPS013', notes: '' });
+  if (fd60Count > 0) suggested.push({ qty: fd60Count, code: 'KPS014', notes: '' });
+  if (nfrCount > 0) suggested.push({ qty: nfrCount, code: 'KPS015', notes: '' });
+
+  // Keys - default 20
+  suggested.push({ qty: 20, code: 'KG115.S', notes: '' });
+
+  // Door closer
+  if (totalDoors > 0) suggested.push({ qty: totalDoors, code: 'KG23', notes: '' });
+
+  compRows = suggested;
+  renderCompTable();
+  validateAll();
+}
+
+// ═══════════════════════════════════════
+// GENERATE DELIVERY NOTE
+// ═══════════════════════════════════════
+function v(id) { return document.getElementById(id)?.value || ''; }
+
+function formatDate(str) {
+  if (!str) return '—';
+  const d = new Date(str);
+  if (isNaN(d)) return str;
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+}
+
+function generateDN() {
+  const projectName = v('projectName');
+  const projectRef = v('projectRef');
+  const phase = v('phase');
+  const salesOrderRef = v('salesOrderRef');
+  const version = v('version');
+  const kgPM = v('kgPM');
+  const siteContact = v('siteContact');
+  const deliveryDate = v('deliveryDate');
+  const companyName = v('companyName');
+  const addr1 = v('addr1');
+  const addr2 = v('addr2');
+  const addr3 = v('addr3');
+  const town = v('town');
+  const county = v('county');
+  const postcode = v('postcode');
+  const collectionDate = v('collectionDate');
+  const collectionTime = v('collectionTime');
+  const unloadCap = v('unloadCap');
+  const transportType = v('transportType');
+  const goodsSupplied = v('goodsSupplied');
+
+  const addrLines = [companyName, addr1, addr2, addr3, town, county, postcode].filter(Boolean);
+
+  const today = new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'long', year:'numeric' });
+
+  // Door rows HTML
+  const doorTbody = doorRows
+    .filter(r => r.code || r.room)
+    .map(r => `
+      <tr>
+        <td>${r.qty}</td>
+        <td><strong>${r.code}</strong></td>
+        <td>${r.pack}</td>
+        <td>${r.room}</td>
+        <td>${r.type}</td>
+        <td>${r.fire}</td>
+        <td>${r.finish}</td>
+        <td>${r.dtm === 'Yes' ? '✓' : '—'}</td>
+        <td>${r.lock !== 'Standard' ? r.lock : '—'}</td>
+        <td>${r.notes || ''}</td>
+      </tr>
+    `).join('');
+
+  // Component rows HTML
+  const compTbody = compRows
+    .filter(r => r.code && r.qty > 0)
+    .map(r => {
+      const desc = ITEM_DB[r.code] || r.code;
+      return `<tr><td>${r.qty}</td><td><strong>${r.code}</strong></td><td>${desc}</td><td>${r.notes||''}</td></tr>`;
+    }).join('');
+
+  const html = `
+<div class="dn-preview" id="dnDoc">
+  <div class="dn-header">
+    <div>
+      <div class="dn-title">Delivery Note</div>
+      <div class="dn-subtitle">Kingsway Group — Door Systems Division</div>
+    </div>
+    <div class="dn-logo">
+      KINGSWAY GROUP<br>
+      <span style="font-weight:400;color:#999;font-size:10px;">Issued: ${today}</span>
+    </div>
+  </div>
+
+  <div class="dn-meta-grid">
+    <div class="dn-box">
+      <div class="dn-box-title">Project Information</div>
+      <div class="dn-row"><div class="dn-label">Project Name</div><div class="dn-value"><strong>${projectName || '—'}</strong></div></div>
+      <div class="dn-row"><div class="dn-label">Project Ref</div><div class="dn-value">
+        ${projectRef ? `<span class="dn-ref-chip">${projectRef}</span>` : '—'}
+        ${phase ? `<span style="color:#555;font-size:11px;margin-left:6px;">Phase ${phase}</span>` : ''}
+      </div></div>
+      <div class="dn-row"><div class="dn-label">Sales Order</div><div class="dn-value">${salesOrderRef || '—'}${version !== '' ? `<span class="dn-version-chip">v${version}</span>` : ''}</div></div>
+      <div class="dn-row"><div class="dn-label">KG Project Mgr</div><div class="dn-value">${kgPM || '—'}</div></div>
+      <div class="dn-row"><div class="dn-label">Site Contact</div><div class="dn-value">${siteContact || '—'}</div></div>
+    </div>
+    <div class="dn-box">
+      <div class="dn-box-title">Delivery Address</div>
+      <div class="dn-addr">${addrLines.join('<br>') || '—'}</div>
+      <div style="margin-top:10px;">
+        <div class="dn-row"><div class="dn-label">Delivery Date</div><div class="dn-value"><strong>${formatDate(deliveryDate)}</strong></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dn-logistics-grid">
+    <div class="dn-box">
+      <div class="dn-box-title">Collection / Despatch</div>
+      <div class="dn-row"><div class="dn-label">Collection Date</div><div class="dn-value">${formatDate(collectionDate)}</div></div>
+      <div class="dn-row"><div class="dn-label">Time</div><div class="dn-value">${collectionTime || '—'}</div></div>
+      <div class="dn-row"><div class="dn-label">Transport Type</div><div class="dn-value">${transportType || '—'}</div></div>
+      <div class="dn-row"><div class="dn-label">Unload</div><div class="dn-value">${unloadCap || '—'}</div></div>
+    </div>
+    <div class="dn-box">
+      <div class="dn-box-title">Goods Supplied</div>
+      <div class="dn-goods">${goodsSupplied || 'As detailed in sections below'}</div>
+    </div>
+  </div>
+
+  <hr class="dn-divider">
+  <div class="dn-section-title">Section 1 – Door Schedule</div>
+  <table class="dn-table">
+    <thead>
+      <tr>
+        <th>Qty</th>
+        <th>Code</th>
+        <th>Pack</th>
+        <th>Room / Location</th>
+        <th>Door Type</th>
+        <th>Fire Rating</th>
+        <th>Frame Finish</th>
+        <th>DTM/DLM</th>
+        <th>Lock</th>
+        <th>Special Notes</th>
+      </tr>
+    </thead>
+    <tbody>${doorTbody || '<tr><td colspan="10" style="color:#999;text-align:center;padding:12px;">No doors entered</td></tr>'}</tbody>
+  </table>
+
+  <div class="dn-section-title">Section 2 – Components &amp; Accessories</div>
+  <table class="dn-table">
+    <thead>
+      <tr>
+        <th>Qty</th>
+        <th>Code</th>
+        <th>Description</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>${compTbody || '<tr><td colspan="4" style="color:#999;text-align:center;padding:12px;">No components entered</td></tr>'}</tbody>
+  </table>
+
+  <div class="dn-notice">
+    This delivery note is generated by the Kingsway Group Delivery Note Tool. Please verify all quantities and specifications before despatch. Any discrepancies should be raised with the Project Manager immediately. This document should accompany the goods at all times during transit.
+  </div>
+</div>
+  `;
+
+  document.getElementById('dnPreviewContainer').innerHTML = html;
+}
+
+// ═══════════════════════════════════════
+// DATALIST FOR CODE AUTOCOMPLETE
+// ═══════════════════════════════════════
+const dl = document.createElement('datalist');
+dl.id = 'codeList';
+ALL_CODES.forEach(c => {
+  const opt = document.createElement('option');
+  opt.value = c;
+  opt.label = ITEM_DB[c];
+  dl.appendChild(opt);
+});
+document.body.appendChild(dl);
+
+// ═══════════════════════════════════════
+// LIVE AUTO-UPDATE DELIVERY DATE
+// ═══════════════════════════════════════
+setTimeout(() => {
+  document.getElementById('deliveryDate').addEventListener('change', updateDeliveryNotice);
+}, 100);
+</script>
+</body>
+</html>
