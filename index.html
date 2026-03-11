@@ -201,7 +201,7 @@ tr.dr-over{outline:2px solid var(--accent);outline-offset:-1px;}
   </div>
 </header>
 
-<input type="file" id="xlsxInput" accept=".xlsx,.xls" style="display:none" onchange="handleXLSX(event)">
+<input type="file" id="xlsxInput" accept=".xlsx,.xls,.xlsm" style="display:none" onchange="handleXLSX(event)">
 <input type="file" id="jsonInput" accept=".json" style="display:none" onchange="handleJSON(event)">
 
 <div class="app">
@@ -316,14 +316,17 @@ tr.dr-over{outline:2px solid var(--accent);outline-offset:-1px;}
     <!-- IMPORT -->
     <div class="spanel" id="spanel-import">
       <div style="padding:14px;">
-        <div class="sec-hd" style="position:static;padding:0 0 7px;">Import from Excel</div>
-        <p style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.6;">Drop your <strong style="color:var(--text)">DN_Config_Tool.xlsx</strong> here to pre-populate door schedule and components. Project fields, door rows, and components will all be imported automatically.</p>
+        <div class="sec-hd" style="position:static;padding:0 0 7px;">Import from Manufacturing Schedule</div>
+        <p style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.6;">
+          Drop a <strong style="color:var(--accent)">KG Manufacturing Schedule</strong> (.xlsm/.xlsx) to automatically generate a complete delivery note — all doors, packs, fire ratings, DTM/electric locking, locks, and components calculated from the schedule.<br><br>
+          Also accepts the legacy <strong style="color:var(--text)">DN_Config_Tool.xlsx</strong> format.
+        </p>
         <div class="drop-zone" id="dropZone" onclick="importXLSXClick()">
           <div style="font-size:26px;margin-bottom:6px;">📂</div>
           <div style="font-weight:700;margin-bottom:3px;">Click or drag & drop</div>
-          <div style="font-size:11px;">Accepts .xlsx / .xls</div>
+          <div style="font-size:11px;">Accepts .xlsx / .xlsm / .xls</div>
         </div>
-        <div id="importLog" style="margin-top:10px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);line-height:1.8;"></div>
+        <div id="importLog" style="margin-top:10px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);line-height:1.8;min-height:20px;"></div>
       </div>
     </div>
 
@@ -408,7 +411,7 @@ const ITEM_DB = {
 };
 const ALL_CODES = Object.keys(ITEM_DB);
 const DOOR_TYPES = ['Single','Double','Leaf&Half'];
-const FIRE_RATINGS = ['FD30','FD60','NFR'];
+const FIRE_RATINGS = ['FD30','FD30S','FD60','FD60S','NFR'];
 const FRAME_FINISHES = ['Oak','Ash','Beech','Primed','Acrovyn','Stainless Steel'];
 const LOCK_TYPES = ['Standard','KG129','KG129(B)','KG512','KG130','None'];
 const IFACE_CODES = ['KG515 K-ATI','KG545 K-ATI','KG546 K-ATI'];
@@ -621,90 +624,311 @@ function setupDrop(){
 function handleXLSX(e){const f=e.target.files[0];if(f)parseXLSX(f);e.target.value='';}
 
 function parseXLSX(file){
-  const log=document.getElementById('importLog');log.textContent='Reading…';
+  const log=document.getElementById('importLog');
+  log.innerHTML='<span style="color:var(--accent)">⏳ Reading file…</span>';
   const reader=new FileReader();
   reader.onload=ev=>{
     try{
       const wb=XLSX.read(ev.target.result,{type:'array',cellText:false,cellDates:true});
       const msgs=[];
-      const dnSheet=wb.Sheets['Delivery Note Maker'];
-      if(!dnSheet){log.innerHTML='<span style="color:var(--danger)">Could not find "Delivery Note Maker" sheet.</span>';return;}
 
-      const rows=XLSX.utils.sheet_to_json(dnSheet,{header:1,defval:''});
-      const sv=(r,c)=>String(rows[r]?.[c]||'').trim();
+      // ── Detect file type ──────────────────────────────
+      const hasMS=wb.SheetNames.includes('MANUFACTURING SCHEDULE');
+      const hasDN=wb.SheetNames.includes('Delivery Note Maker');
 
-      // Scan for project fields by label
-      rows.forEach((row,ri)=>{
-        const l0=String(row[0]||'').toLowerCase();
-        const l1=String(row[1]||'').toLowerCase();
-        if(l0.includes('project name'))g2('projectName',sv(ri,3)||sv(ri,4)||sv(ri,5)||'');
-        if(l0.includes('project ref'))g2('projectRef',sv(ri,3)||sv(ri,4)||'');
-        if(l0.includes('phase')&&!l0.includes('section'))g2('phase',sv(ri,8)||sv(ri,9)||'');
-        if(l0.includes('sales order'))g2('salesOrderRef',sv(ri,3)||sv(ri,4)||'');
-        if(l0.includes('version'))g2('version',sv(ri,11)||sv(ri,12)||'0');
-        if(l0.includes('site contact'))g2('siteContact',sv(ri,3)||sv(ri,4)||'');
-        if(l1.includes('company name'))g2('companyName',sv(ri,2)||sv(ri,3)||'');
-        if(l1.includes('address line 1'))g2('addr1',sv(ri,2)||sv(ri,3)||'');
-        if(l1.includes('address line 2'))g2('addr2',sv(ri,2)||sv(ri,3)||'');
-        if(l1.includes('address line 3'))g2('addr3',sv(ri,2)||sv(ri,3)||'');
-        if(l1==='town:')g2('town',sv(ri,2)||'');
-        if(l1==='county:')g2('county',sv(ri,2)||'');
-        if(l1==='postcode:')g2('postcode',sv(ri,2)||'');
-        if(l1==='date:'){const dv=rows[ri][3];if(dv instanceof Date)g2('deliveryDate',dv.toISOString().split('T')[0]);}
-        const l10=String(row[10]||'').toLowerCase();
-        if(l10.includes('collection date')){const dv=rows[ri][11];if(dv instanceof Date)g2('collectionDate',dv.toISOString().split('T')[0]);}
-        if(l10.includes('time'))g2('collectionTime',sv(ri,11)||'');
-        if(l10.includes('unload'))g2('unloadCap',sv(ri,11)||'');
-        if(l10.includes('transport'))g2('transportType',sv(ri,11)||'');
-      });
-      msgs.push('✅ Project fields scanned');
-
-      // Find door header row (Qty | Code | Door Pack …)
-      let doorStart=-1;
-      rows.forEach((row,ri)=>{
-        if(String(row[0]||'').toLowerCase().trim()==='qty'&&String(row[1]||'').toLowerCase().trim()==='code'&&doorStart===-1)doorStart=ri+1;
-      });
-      if(doorStart>0){
-        const imp=[];
-        for(let ri=doorStart;ri<doorStart+30&&ri<rows.length;ri++){
-          const row=rows[ri];
-          const qty=parseInt(row[0]);const code=String(row[1]||'').trim();
-          if(!code||isNaN(qty)||qty<1)continue;
-          imp.push({qty,code,pack:parseInt(row[2])||1,room:String(row[3]||'').trim(),
-            type:DOOR_TYPES.includes(String(row[4]||'').trim())?String(row[4]).trim():'Single',
-            fire:FIRE_RATINGS.includes(String(row[5]||'').trim())?String(row[5]).trim():'FD30',
-            finish:FRAME_FINISHES.includes(String(row[6]||'').trim())?String(row[6]).trim():'Oak',
-            dtm:String(row[7]||'').trim()==='Yes'?'Yes':'No',
-            lock:LOCK_TYPES.includes(String(row[8]||'').trim())?String(row[8]).trim():'Standard',
-            notes:String(row[9]||'').trim(),
-          });
-        }
-        if(imp.length>0){doors=imp;msgs.push(`✅ ${imp.length} door rows imported`);}
+      if(hasMS){
+        parseMfgSchedule(wb,msgs);
+      } else if(hasDN){
+        parseDNConfigTool(wb,msgs);
+      } else {
+        log.innerHTML=`<span style="color:var(--danger)">❌ Unrecognised file — expected a KG Manufacturing Schedule (.xlsm) or DN_Config_Tool.xlsx.<br>Sheets found: ${wb.SheetNames.slice(0,6).join(', ')}</span>`;
+        return;
       }
 
-      // Find second Qty/Code header for components
-      let compStart=-1;
-      rows.forEach((row,ri)=>{
-        if(ri>doorStart&&String(row[0]||'').toLowerCase().trim()==='qty'&&String(row[1]||'').toLowerCase().trim()==='code')compStart=ri+1;
-      });
-      if(compStart>0){
-        const imp=[];
-        for(let ri=compStart;ri<compStart+60&&ri<rows.length;ri++){
-          const row=rows[ri];
-          const qty=parseFloat(row[0]);const code=String(row[1]||'').trim();
-          if(!code||isNaN(qty)||qty<=0)continue;
-          imp.push({qty:Math.round(qty),code,notes:String(row[3]||'').trim()});
-        }
-        if(imp.length>0){comps=imp;msgs.push(`✅ ${imp.length} component rows imported`);}
-      }
-
-      log.innerHTML=msgs.map(m=>`<div>${m}</div>`).join('');
+      log.innerHTML=msgs.map((m,i)=>`<div style="color:${m.startsWith('❌')?'var(--danger)':m.startsWith('⚠')?'var(--warn)':'var(--accent2)'}">${m}</div>`).join('');
       currentJobId=null;dirty();renderAll();valAll();updateNotice();updateBadge();genAndShow();
       switchTab('form',document.querySelectorAll('.stab')[0]);
-      toast('Excel imported — review & save');
-    }catch(err){log.innerHTML=`<span style="color:var(--danger)">Error: ${err.message}</span>`;toast('⚠ Import failed');}
+      toast('Imported — review & save ✓');
+    }catch(err){
+      log.innerHTML=`<span style="color:var(--danger)">❌ Error: ${err.message}</span>`;
+      console.error(err);toast('⚠ Import failed');
+    }
   };
   reader.readAsArrayBuffer(file);
+}
+
+// ══════════════════════════════════════════════════════════
+// PARSER A — KG Manufacturing Schedule (.xlsm)
+// Reads MANUFACTURING SCHEDULE sheet + DELIVERY NOTE sheet
+// ══════════════════════════════════════════════════════════
+function parseMfgSchedule(wb, msgs){
+  const sv=v=>String(v==null?'':v).trim();
+  const msRows=XLSX.utils.sheet_to_json(wb.Sheets['MANUFACTURING SCHEDULE'],{header:1,defval:'',raw:true});
+
+  // ── 1. Project metadata from row 0 ───────────────────
+  // Row 0: PROJECT NAME | | | <value> | | | | | | | | | | | | | MANUFACTURING SCHEDULE
+  // Row 3: PROJECT REFERENCE | | | <ref>
+  // Row 4: Architect Docs | | | | | | | | MS Rev | <P02>
+  const getCell=(ri,ci)=>sv(msRows[ri]?.[ci]);
+  const projName=getCell(0,3)||getCell(0,4)||getCell(0,5)||'';
+  const projRef=getCell(3,3)||getCell(3,4)||'';
+  const msRev=getCell(4,8)||getCell(4,9)||'';
+
+  g2('projectName',projName);
+  g2('projectRef',projRef);
+  if(msRev)g2('salesOrderRef','MS Rev '+msRev);
+  g2('version','0');
+  msgs.push(`✅ Project: ${projName||'(not found)'} | Ref: ${projRef||'?'} | MS Rev: ${msRev||'?'}`);
+
+  // ── 2. Find door data header row ─────────────────────
+  // Header row has: Delivery Phase | Production Phase | DOOR NUMBER | DOOR PACK | ROOM DESCRIPTION | FIRE RATING | WIDTH | HEIGHT …
+  // Col indices (0-based): 0=DelivPhase 1=ProdPhase 2=DoorNumber 3=DoorPack 4=RoomDesc 5=FireRating
+  //   6=SO_Width 7=SO_Height 8=WallThick 9=FrameThick
+  //   10=DoorWidth 11=DoorHeight 12=DoorThick 13=SlaveWidth 14=SlaveHeight
+  //   29=Hand 30=Action 31=HingeType 32=Lock 33=CloserType 34=FireIDDisc 35=SwingStop 36=ElecLock(DTM)
+  //   37=AlarmType 38=VisionPanel 39=EdgeGuards 40=Notes 41=FireSignage 42=Handle
+  //   43=KickplateReqd 44=KickplateFinish … 60=EscutcheonType 61=CylinderType
+  let hdrRow=-1;
+  for(let ri=0;ri<msRows.length;ri++){
+    const r=msRows[ri];
+    const c2=sv(r[2]).toLowerCase();const c4=sv(r[4]).toLowerCase();
+    if(c2.includes('door number')&&c4.includes('room')){hdrRow=ri;break;}
+  }
+  if(hdrRow<0){msgs.push('⚠ Could not find door header row in MANUFACTURING SCHEDULE — no doors imported');return;}
+  msgs.push(`✅ Door header found at row ${hdrRow+1}`);
+
+  // Build column index map from header row
+  const hdr=msRows[hdrRow];
+  const ci={};
+  hdr.forEach((cell,i)=>{
+    const v=sv(cell).toLowerCase();
+    if(v.includes('door number'))ci.code=i;
+    if(v.includes('door pack'))ci.pack=i;
+    if(v==='room description')ci.room=i;
+    if(v.includes('fire rating'))ci.fire=i;
+    if(v==='thickness'&&ci.thick==null)ci.thick=i; // door thickness
+    if(v==='slave leaf width'||v.includes('slave leaf w'))ci.slave=i; // slave leaf = double/L&H
+    if(v==='hand')ci.hand=i;
+    if(v==='action')ci.action=i;
+    if(v.includes('closer type'))ci.closer=i;
+    if(v.includes('electric lock'))ci.dtm=i;
+    if(v.includes('alarm type'))ci.alarm=i;
+    if(v.includes('lock cut'))ci.lock=i;
+    if(v.includes('frame material'))ci.frameMat=i;
+    if(v.includes('notes')&&!v.includes('vp'))ci.notes=i;
+    if(v.includes('lipping'))ci.lipping=i;
+  });
+
+  // ── 3. Build pack→door list from DELIVERY NOTE sheet ─
+  // DN sheet columns: B=DelivPhase C=DoorPack D=DoorRef E=RoomRef
+  const packMap={};// doorCode → pack number
+  if(wb.Sheets['DELIVERY NOTE']){
+    const dnRows=XLSX.utils.sheet_to_json(wb.Sheets['DELIVERY NOTE'],{header:1,defval:'',raw:true});
+    dnRows.forEach(row=>{
+      const phase=sv(row[1]);const pack=parseInt(row[2]);const code=sv(row[3]);
+      if(code&&!isNaN(pack)&&pack>0)packMap[code]=pack;
+    });
+    msgs.push(`✅ Pack assignments loaded from DELIVERY NOTE (${Object.keys(packMap).length} doors)`);
+  }
+
+  // ── 4. Parse door rows ────────────────────────────────
+  // Rows after hdrRow until empty door number
+  const imp=[];
+  // Finish detection: lippings column contains e.g. "10mm Concealed Beech", "10mm Exposed Oak"
+  // Frame material col: "Primed Beech hardwood", "Oak hardwood", etc.
+  const detectFinish=(lipping,frameMat)=>{
+    const lc=(lipping+' '+frameMat).toLowerCase();
+    if(lc.includes('acrovyn'))return'Acrovyn';
+    if(lc.includes('stainless'))return'Stainless Steel';
+    if(lc.includes('oak'))return'Oak';
+    if(lc.includes('ash'))return'Ash';
+    if(lc.includes('beech'))return'Beech';
+    if(lc.includes('primed'))return'Primed';
+    return'Beech';// default for NHS projects
+  };
+  const detectFire=(v)=>{
+    if(!v||v==='0'||v==='')return'NFR';
+    const u=sv(v).toUpperCase();
+    if(u.includes('FD60'))return'FD60';
+    if(u.includes('FD30'))return'FD30S'in FIRE_RATINGS?'FD30S':'FD30';
+    if(u.includes('NFR'))return'NFR';
+    return'FD30';
+  };
+  const detectType=(slave,action)=>{
+    const s=sv(slave);const a=sv(action).toUpperCase();
+    if(s&&s!=='0'&&s!=='')return'Double';// has slave leaf width
+    if(a==='SINGLE')return'Single';
+    if(a==='DOUBLE')return'Double';
+    return'Single';
+  };
+  // Lock detection from "LOCK CUT OUT / SLAVE LEAF LOCKS" column
+  // Values like "Primera - KG1000", "Sina - KG1100", "KG129(B)", "Extended Backset Deadlock", etc.
+  const detectLock=(lockVal)=>{
+    const v=sv(lockVal).toLowerCase();
+    if(v.includes('kg129(b)')||v.includes('extended backset'))return'KG129(B)';
+    if(v.includes('kg512')||v.includes('dtm')||v.includes('dlm'))return'KG512';
+    if(v.includes('kg129')&&!v.includes('(b)'))return'KG129';
+    if(v.includes('kg130')||v.includes('roller'))return'KG130';
+    if(v===''||v==='0')return'Standard';
+    return'Standard';
+  };
+  const detectDTM=(dtmVal,alarmVal,closerVal)=>{
+    // DTM = electric locking. Col 36 = ELECTRIC LOCKING. Also ALARM TYPE col.
+    const d=sv(dtmVal);const a=sv(alarmVal);
+    if(d&&d!=='0'&&d!==''&&d.toLowerCase()!=='no')return'Yes';
+    if(a&&a!=='0'&&a!==''&&a.toLowerCase()!=='no')return'Yes';
+    return'No';
+  };
+
+  for(let ri=hdrRow+1;ri<msRows.length;ri++){
+    const row=msRows[ri];
+    const code=sv(row[ci.code??2]);
+    if(!code||code==='0'||code.startsWith('CODE'))continue;
+    // Skip if it looks like a reference/legend row
+    if(code.toLowerCase().includes('door number'))continue;
+
+    const packFromDN=packMap[code];
+    const packFromRow=parseInt(sv(row[ci.pack??3]))||0;
+    const pack=packFromDN||(packFromRow>0?packFromRow:1);
+
+    const room=sv(row[ci.room??4]).replace(/\n/g,' ').replace(/\s+/g,' ');
+    const fireRaw=sv(row[ci.fire??5]);
+    const fire=detectFire(fireRaw);
+    const lipping=sv(row[ci.lipping??15]);
+    const frameMat=sv(row[ci.frameMat??24]);
+    const finish=detectFinish(lipping,frameMat);
+    const slaveW=sv(row[ci.slave??13]);
+    const action=sv(row[ci.action??30]);
+    const type=detectType(slaveW,action);
+    const dtmRaw=sv(row[ci.dtm??36]);
+    const alarmRaw=sv(row[ci.alarm??37]);
+    const closerRaw=sv(row[ci.closer??33]);
+    const dtm=detectDTM(dtmRaw,alarmRaw,closerRaw);
+    const lockRaw=sv(row[ci.lock??32]);
+    const lock=detectLock(lockRaw);
+    const notesRaw=sv(row[ci.notes??40]);
+    // Build notes: vision panel + lock description
+    const vpRaw=sv(row[38]);// VISION PANEL & HATCH CUT OUTS
+    const notesParts=[];
+    if(vpRaw&&vpRaw!=='0')notesParts.push('VP: '+vpRaw);
+    if(lockRaw&&lockRaw!=='0'&&lockRaw.toLowerCase()!=='standard')notesParts.push(lockRaw.split(',')[0].trim());
+    if(notesRaw)notesParts.push(notesRaw);
+    const notes=notesParts.join(' | ');
+
+    imp.push({qty:1,code,pack,room,type,fire:fire==='FD30S'?'FD30':fire,finish,dtm,lock,notes});
+  }
+
+  if(imp.length===0){msgs.push('⚠ No door rows found — check the sheet structure');return;}
+  doors=imp;
+  msgs.push(`✅ ${imp.length} doors imported across ${[...new Set(imp.map(d=>d.pack))].length} packs`);
+  msgs.push(`📊 FD30S: ${imp.filter(d=>d.fire==='FD30').length} | FD60: ${imp.filter(d=>d.fire==='FD60').length} | NFR: ${imp.filter(d=>d.fire==='NFR').length} | DTM: ${imp.filter(d=>d.dtm==='Yes').length} | Double/L&H: ${imp.filter(d=>d.type==='Double').length}`);
+
+  // ── 5. Auto-calculate components ─────────────────────
+  autoFillSilent();
+  msgs.push(`✅ Components auto-calculated (${comps.length} lines) — review in Configure tab`);
+}
+
+// Auto-fill without toast notification
+function autoFillSilent(){
+  const ds=doors.filter(d=>d.code);
+  const tot=ds.reduce((s,d)=>s+d.qty,0);
+  if(!tot)return;
+  const fin=f=>ds.filter(d=>d.finish===f).reduce((s,d)=>s+d.qty,0);
+  const primed=fin('Primed'),oak=fin('Oak'),ash=fin('Ash'),beech=fin('Beech');
+  const acrovyn=fin('Acrovyn'),ss=fin('Stainless Steel');
+  const preFin=oak+ash+beech+ss;
+  const dtm=ds.filter(d=>d.dtm==='Yes').reduce((s,d)=>s+d.qty,0);
+  const dbl=ds.filter(d=>d.type==='Double'||d.type==='Leaf&Half').reduce((s,d)=>s+d.qty,0);
+  const fd30=ds.filter(d=>d.fire==='FD30').reduce((s,d)=>s+d.qty,0);
+  const fd60=ds.filter(d=>d.fire==='FD60').reduce((s,d)=>s+d.qty,0);
+  const nfr=ds.filter(d=>d.fire==='NFR').reduce((s,d)=>s+d.qty,0);
+  const extBackset=ds.filter(d=>d.lock==='KG129(B)'||d.lock==='KG129 Extended').reduce((s,d)=>s+d.qty,0);
+  const dtmPrimed=ds.filter(d=>d.dtm==='Yes'&&d.finish==='Primed').reduce((s,d)=>s+d.qty,0);
+  const dtmFin=dtm-dtmPrimed;
+  const s=[],add=(qty,code,notes='')=>{if(qty>0)s.push({qty,code,notes});};
+  if(preFin+acrovyn>0)add((preFin+acrovyn)*5,'Arc03');
+  if(primed>0)add(primed*5,'Arc03 Primed');
+  if(preFin>0){add(preFin*40,'Pellets 8mm','Architrave pellets');add(preFin*40,'Pellets 13mm','Frame pellets');}
+  if(acrovyn>0)add(acrovyn*80,'Pellets 13mm Acrovyn','Acrovyn frame (80pp)');
+  if(preFin>0)add(preFin*2,'Intumescent Brown 15x4mm brush','Frame seal pre-finished');
+  if(primed>0)add(primed*2,'Intumescent White 15x4mm brush','Frame seal primed');
+  if(fd60>0)add(fd60*2,'Intumescent 15x4mm plain','FD60 additional seal');
+  if(dtmFin>0)add(dtmFin*2,'Intumescent Brown 30x4mm single fin','DTM doors');
+  if(dtmPrimed>0)add(dtmPrimed*2,'Intumescent White 30x4mm single fin','DTM primed');
+  if(dbl>0&&preFin>0)add(dbl,'Intumescent Brown 10x4mm brush','Double/L&H leading edge');
+  if(dbl>0&&primed>0)add(dbl,'Intumescent White 10x4mm brush','Double/L&H leading edge primed');
+  add(tot,'Cylinder Bolt M5 x 90mm');
+  if(extBackset>0)add(extBackset,'Cylinder Bolt M5 x 130mm','Extended backset');
+  if(fd30>0)add(fd30,'KPS013','FD30 doors');
+  if(fd60>0)add(fd60,'KPS014','FD60 doors');
+  if(nfr>0)add(nfr,'KPS015','NFR doors');
+  if(dbl>0)add(dbl,'KG64','Double/L&H');
+  add(20,'KG115.S','Standard');
+  add(tot,'KG23');
+  add(Math.ceil(tot/25),'Blue 60 Fire Foam');
+  if(dtm>0){const ifaceCode=dtmPrimed>0?'KG545 K-ATI':'KG545 K-ATI';add(dtm,ifaceCode,'DTM interface units');}
+  const antipickTubes=tot*2;add(Math.ceil(antipickTubes/12),primed>0?'Antipick White':'Antipick Grey');
+  comps=s;
+}
+
+// ══════════════════════════════════════════════════════════
+// PARSER B — Legacy DN_Config_Tool.xlsx
+// ══════════════════════════════════════════════════════════
+function parseDNConfigTool(wb, msgs){
+  const rows=XLSX.utils.sheet_to_json(wb.Sheets['Delivery Note Maker'],{header:1,defval:'',cellDates:true});
+  const sv=(r,c)=>String(rows[r]?.[c]||'').trim();
+  rows.forEach((row,ri)=>{
+    const l0=String(row[0]||'').toLowerCase();
+    const l1=String(row[1]||'').toLowerCase();
+    if(l0.includes('project name'))g2('projectName',sv(ri,3)||sv(ri,4)||sv(ri,5)||'');
+    if(l0.includes('project ref'))g2('projectRef',sv(ri,3)||sv(ri,4)||'');
+    if(l0.includes('phase')&&!l0.includes('section'))g2('phase',sv(ri,8)||sv(ri,9)||'');
+    if(l0.includes('sales order'))g2('salesOrderRef',sv(ri,3)||sv(ri,4)||'');
+    if(l0.includes('version'))g2('version',sv(ri,11)||sv(ri,12)||'0');
+    if(l0.includes('site contact'))g2('siteContact',sv(ri,3)||sv(ri,4)||'');
+    if(l1.includes('company name'))g2('companyName',sv(ri,2)||sv(ri,3)||'');
+    if(l1.includes('address line 1'))g2('addr1',sv(ri,2)||sv(ri,3)||'');
+    if(l1.includes('address line 2'))g2('addr2',sv(ri,2)||sv(ri,3)||'');
+    if(l1.includes('address line 3'))g2('addr3',sv(ri,2)||sv(ri,3)||'');
+    if(l1==='town:')g2('town',sv(ri,2)||'');
+    if(l1==='county:')g2('county',sv(ri,2)||'');
+    if(l1==='postcode:')g2('postcode',sv(ri,2)||'');
+    if(l1==='date:'){const dv=rows[ri][3];if(dv instanceof Date)g2('deliveryDate',dv.toISOString().split('T')[0]);}
+  });
+  msgs.push('✅ Project fields imported (DN Config Tool format)');
+  let doorStart=-1;
+  rows.forEach((row,ri)=>{
+    if(String(row[0]||'').toLowerCase().trim()==='qty'&&String(row[1]||'').toLowerCase().trim()==='code'&&doorStart===-1)doorStart=ri+1;
+  });
+  if(doorStart>0){
+    const imp=[];
+    for(let ri=doorStart;ri<doorStart+200&&ri<rows.length;ri++){
+      const row=rows[ri];const qty=parseInt(row[0]);const code=String(row[1]||'').trim();
+      if(!code||isNaN(qty)||qty<1)continue;
+      imp.push({qty,code,pack:parseInt(row[2])||1,room:String(row[3]||'').trim(),
+        type:DOOR_TYPES.includes(String(row[4]||'').trim())?String(row[4]).trim():'Single',
+        fire:FIRE_RATINGS.includes(String(row[5]||'').trim())?String(row[5]).trim():'FD30',
+        finish:FRAME_FINISHES.includes(String(row[6]||'').trim())?String(row[6]).trim():'Oak',
+        dtm:String(row[7]||'').trim()==='Yes'?'Yes':'No',
+        lock:LOCK_TYPES.includes(String(row[8]||'').trim())?String(row[8]).trim():'Standard',
+        notes:String(row[9]||'').trim(),
+      });
+    }
+    if(imp.length>0){doors=imp;msgs.push(`✅ ${imp.length} door rows imported`);}
+  }
+  let compStart=-1;
+  rows.forEach((row,ri)=>{
+    if(ri>doorStart&&String(row[0]||'').toLowerCase().trim()==='qty'&&String(row[1]||'').toLowerCase().trim()==='code')compStart=ri+1;
+  });
+  if(compStart>0){
+    const imp=[];
+    for(let ri=compStart;ri<compStart+200&&ri<rows.length;ri++){
+      const row=rows[ri];const qty=parseFloat(row[0]);const code=String(row[1]||'').trim();
+      if(!code||isNaN(qty)||qty<=0)continue;
+      imp.push({qty:Math.round(qty),code,notes:String(row[3]||'').trim()});
+    }
+    if(imp.length>0){comps=imp;msgs.push(`✅ ${imp.length} component rows imported`);}
+  }
 }
 
 function populateDL(){/* already done above */}
