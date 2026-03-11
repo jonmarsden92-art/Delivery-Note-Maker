@@ -201,7 +201,7 @@ tr.dr-over{outline:2px solid var(--accent);outline-offset:-1px;}
   </div>
 </header>
 
-<input type="file" id="xlsxInput" accept=".xlsx,.xls" style="display:none" onchange="handleXLSX(event)">
+<input type="file" id="xlsxInput" accept=".xlsx,.xls,.xlsm" style="display:none" onchange="handleXLSX(event)">
 <input type="file" id="jsonInput" accept=".json" style="display:none" onchange="handleJSON(event)">
 
 <div class="app">
@@ -321,7 +321,7 @@ tr.dr-over{outline:2px solid var(--accent);outline-offset:-1px;}
         <div class="drop-zone" id="dropZone" onclick="importXLSXClick()">
           <div style="font-size:26px;margin-bottom:6px;">📂</div>
           <div style="font-weight:700;margin-bottom:3px;">Click or drag & drop</div>
-          <div style="font-size:11px;">Accepts .xlsx / .xls</div>
+          <div style="font-size:11px;">Accepts .xlsx / .xls / .xlsm</div>
         </div>
         <div id="importLog" style="margin-top:10px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);line-height:1.8;"></div>
       </div>
@@ -626,7 +626,17 @@ function parseXLSX(file){
   reader.onload=ev=>{
     try{
       const wb=XLSX.read(ev.target.result,{type:'array',cellText:false,cellDates:true});
-      const msgs=[];
+      
+    // NEW: Manufacturing Schedule detection (added)
+    const msSheet = wb.Sheets['MANUFACTURING SCHEDULE']
+                  || wb.Sheets['Manufacturing Schedule']
+                  || wb.Sheets['MANUFACTURING SCHEDULE '];
+    if (msSheet) {
+      importFromMS(msSheet);
+      return;
+    }
+
+const msgs=[];
       const dnSheet=wb.Sheets['Delivery Note Maker'];
       if(!dnSheet){log.innerHTML='<span style="color:var(--danger)">Could not find "Delivery Note Maker" sheet.</span>';return;}
 
@@ -708,6 +718,106 @@ function parseXLSX(file){
 }
 
 function populateDL(){/* already done above */}
+
+
+// ===== Manufacturing Schedule → DN helpers (added) =====
+function msNormalizeFire(s='') {
+  s = String(s).toUpperCase();
+  if (s.includes('FD60')) return 'FD60';
+  if (s.includes('FD30')) return 'FD30';
+  return 'NFR';
+}
+function msNormalizeType(s='') {
+  s = String(s).toUpperCase();
+  return (s.includes('DOUBLE') || s.includes('LEAF')) ? 'Double' : 'Single';
+}
+function msGuessFinish(frameMat='') {
+  const s = String(frameMat).toLowerCase();
+  if (s.includes('stainless')) return 'Stainless Steel';
+  if (s.includes('acrovyn') || s.includes('yeoman')) return 'Acrovyn';
+  if (s.includes('primed')) return 'Primed';
+  if (s.includes('oak')) return 'Oak';
+  if (s.includes('ash')) return 'Ash';
+  if (s.includes('beech')) return 'Beech';
+  return 'Oak';
+}
+function msHasDTM(row) {
+  const a = (row['ALARM TYPE']||row['ALARM']||'') + ' ' + (row['ELECTRIC LOCKING']||'') + ' ' + (row['CLOSER TYPE']||'');
+  const s = a.toUpperCase();
+  // SENTRY/FD (alarm code in MS), DTM/DLM keywords → DTM yes
+  return /\bSENTRY\b|\bFD\b|\bDTM\b|\bDLM\b/.test(s);
+}
+function msNormalizeLock(lockStr='') {
+  const s = String(lockStr).toUpperCase();
+  if (s.includes('KG129(B)')) return 'KG129(B)';
+  if (s.includes('KG129')) return 'KG129';
+  if (s.includes('KG512')) return 'KG512';
+  if (s.includes('KG130')) return 'KG130';
+  return 'Standard';
+}
+function importFromMS(ws) {
+  const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+  const must = ['DOOR NUMBER','ROOM DESCRIPTION','FIRE RATING'];
+  let H = -1;
+  for (let i=0;i<rows.length;i++){
+    const line = rows[i].map(v=>String(v).trim().toUpperCase());
+    if (must.every(w=>line.includes(w))) { H = i; break; }
+  }
+  if (H < 0) throw new Error('Could not find headers on MANUFACTURING SCHEDULE');
+
+  const header = rows[H].map(h=>String(h).trim());
+  const idx = name => header.findIndex(h => h.toLowerCase() === name.toLowerCase());
+  const iDoorPack = idx('DOOR PACK');
+  const iRoom     = idx('ROOM DESCRIPTION');
+  const iFire     = idx('FIRE RATING');
+  const iAction   = idx('ACTION');
+  const iFrameMat = idx('FRAME MATERIAL') >= 0 ? idx('FRAME MATERIAL') : idx('FRAME MATERIAL AND FINISH');
+  const iCloser   = idx('CLOSER TYPE');
+  const iElec     = idx('ELECTRIC LOCKING');
+  const iAlarm    = idx('ALARM TYPE');
+  const iLockCO   = idx('LOCK CUT OUT / SLAVE LEAF LOCKS');
+  const iCode     = (idx('CODE') >= 0 ? idx('CODE')
+                    : (idx('Door Combination Code') >= 0 ? idx('Door Combination Code')
+                    : idx('DOOR NUMBER')));
+
+  const tmp = [];
+  for (let r = H+1; r < rows.length; r++) {
+    const room = iRoom>=0 ? String(rows[r][iRoom]).trim() : '';
+    const codeRaw = iCode>=0 ? String(rows[r][iCode]).trim() : '';
+    if (!room && !codeRaw) continue;
+
+    const pack    = iDoorPack>=0 ? parseInt(rows[r][iDoorPack]) || 1 : 1;
+    const fire    = msNormalizeFire(iFire>=0 ? rows[r][iFire] : '');
+    const type    = msNormalizeType(iAction>=0 ? rows[r][iAction] : '');
+    const finish  = msGuessFinish(iFrameMat>=0 ? rows[r][iFrameMat] : '');
+    const dtm     = msHasDTM({
+                      'ALARM TYPE': iAlarm>=0?rows[r][iAlarm]:'',
+                      'ELECTRIC LOCKING': iElec>=0?rows[r][iElec]:'',
+                      'CLOSER TYPE': iCloser>=0?rows[r][iCloser]:''
+                    }) ? 'Yes' : 'No';
+    const lock    = msNormalizeLock(iLockCO>=0 ? rows[r][iLockCO] : '');
+    const code    = codeRaw || '—';
+
+    tmp.push({ qty:1, code, pack, room, type, fire, finish, dtm, lock, notes:'' });
+  }
+
+  // aggregate identical lines
+  const keyOf = d => [d.code,d.pack,d.room,d.type,d.fire,d.finish,d.dtm,d.lock].join('\u00A7');
+  const map = new Map();
+  for (const d of tmp){
+    const k = keyOf(d);
+    if (!map.has(k)) map.set(k, {...d});
+    else map.get(k).qty += 1;
+  }
+  doors = Array.from(map.values());
+
+  currentJobId = null;
+  dirty(); renderAll(); valAll(); updateNotice(); updateBadge(); genAndShow();
+  switchTab('form', document.querySelectorAll('.stab')[0]);
+  try{ document.getElementById('importLog').innerHTML = '✅ Manufacturing Schedule detected and imported'; }catch{}
+  toast(`Manufacturing Schedule imported — ${doors.reduce((s,x)=>s+x.qty,0)} doors`);
+}
+// ===== end helpers (added) =====
 
 // ═══════════ DOOR TABLE ═══════════
 let dragFrom=null;
