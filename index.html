@@ -186,7 +186,13 @@ tr.dr-over{outline:2px solid var(--accent);outline-offset:-1px;}
 <body>
 
 <header>
-  <div class="logo">KW<span> Group</span></div>
+  <div class="logo" style="display:flex;align-items:center;gap:8px">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0">
+    <rect x="1.5" y="1.5" width="21" height="21" rx="4" stroke="#e9c84a" stroke-width="2"/>
+    <path d="M7 7h3l-3 5 3 5H7l-3-5 3-5Zm7 0h2l1.6 4.4L19.2 7H21l-3 5 3 5h-1.8l-1.6-4.4L16 17h-2l3-5-3-5Z" fill="#e9c84a"/>
+  </svg>
+  <span style="font-weight:800;letter-spacing:.08em;color:#ededf5">KINGSWAY GROUP</span>
+</div>
   <div class="hcenter">
     <span id="dnBadge" class="dn-badge">DN — Unsaved</span>
   </div>
@@ -410,12 +416,13 @@ const ALL_CODES = Object.keys(ITEM_DB);
 const DOOR_TYPES = ['Single','Double','Leaf&Half'];
 const FIRE_RATINGS = ['FD30','FD60','NFR'];
 const FRAME_FINISHES = ['Oak','Ash','Beech','Primed','Acrovyn','Stainless Steel'];
-const LOCK_TYPES = ['Standard','KG129','KG129(B)','KG512','KG130','None'];
+const LOCK_TYPES = ['Standard','KG129','KG129(B)','KG512','KG130','KG1000','KG1100','KG1600','KG2000','KG2100','Twintech','Salto AElement','Sina KG1100','Sina KG1000','None'];
 const IFACE_CODES = ['KG515 K-ATI','KG545 K-ATI','KG546 K-ATI'];
 
 ALL_CODES.forEach(c=>{const o=document.createElement('option');o.value=c;o.label=ITEM_DB[c];document.getElementById('codeList').appendChild(o);});
 
 // ═══════════ STATE ═══════════
+let msRevision='';
 let doors=[], comps=[], isDirty=false, currentJobId=null, dnSeq=1;
 
 function dirty(){isDirty=true;updateBadge();}
@@ -627,7 +634,7 @@ function parseXLSX(file){
     try{
       const wb=XLSX.read(ev.target.result,{type:'array',cellText:false,cellDates:true});
       
-    // NEW: Manufacturing Schedule detection (added)
+    // NEW: Manufacturing Schedule detection (v3)
     const msSheet = wb.Sheets['MANUFACTURING SCHEDULE']
                   || wb.Sheets['Manufacturing Schedule']
                   || wb.Sheets['MANUFACTURING SCHEDULE '];
@@ -720,104 +727,203 @@ const msgs=[];
 function populateDL(){/* already done above */}
 
 
-// ===== Manufacturing Schedule → DN helpers (added) =====
+// ===== Manufacturing Schedule → DN helpers (added v3) =====
 function msNormalizeFire(s='') {
   s = String(s).toUpperCase();
-  if (s.includes('FD60')) return 'FD60';
-  if (s.includes('FD30')) return 'FD30';
+  if (s.includes('FD60')) return 'FD60S';
+  if (s.includes('FD30')) return 'FD30S';
   return 'NFR';
 }
 function msNormalizeType(s='') {
-  s = String(s).toUpperCase();
-  return (s.includes('DOUBLE') || s.includes('LEAF')) ? 'Double' : 'Single';
+  const t = String(s).toUpperCase();
+  if (t.includes('LEAF')) return 'Leaf&Half';
+  if (t.includes('DOUBLE')) return 'Double';
+  return 'Single';
 }
 function msGuessFinish(frameMat='') {
   const s = String(frameMat).toLowerCase();
   if (s.includes('stainless')) return 'Stainless Steel';
   if (s.includes('acrovyn') || s.includes('yeoman')) return 'Acrovyn';
-  if (s.includes('primed')) return 'Primed';
   if (s.includes('oak')) return 'Oak';
   if (s.includes('ash')) return 'Ash';
-  if (s.includes('beech')) return 'Beech';
-  return 'Oak';
+  if (s.includes('beech')) return 'Beech'; // prefer species over primer flag
+  if (s.includes('primed')) return 'Primed';
+  return 'Beech';
 }
 function msHasDTM(row) {
   const a = (row['ALARM TYPE']||row['ALARM']||'') + ' ' + (row['ELECTRIC LOCKING']||'') + ' ' + (row['CLOSER TYPE']||'');
   const s = a.toUpperCase();
-  // SENTRY/FD (alarm code in MS), DTM/DLM keywords → DTM yes
-  return /\bSENTRY\b|\bFD\b|\bDTM\b|\bDLM\b/.test(s);
+  // Tuned rule: ONLY SENTRY indicates Full Door Alarm; ignore FD/DTM/DLM tokens
+  return /\bSENTRY\b/.test(s);
 }
 function msNormalizeLock(lockStr='') {
   const s = String(lockStr).toUpperCase();
-  if (s.includes('KG129(B)')) return 'KG129(B)';
+  // Brand-specific forms
+  if (s.includes('SALTO')) return 'Salto AElement';
+  if (s.includes('SINA') && s.includes('KG1100')) return 'Sina KG1100';
+  if (s.includes('SINA') && s.includes('KG1000')) return 'Sina KG1000';
+  // Primera SKUs
+  if (s.includes('TWINTECH')) return 'Twintech';
+  if (s.includes('KG2100')) return 'KG2100';
+  if (s.includes('KG2000')) return 'KG2000';
+  if (s.includes('KG1600')) return 'KG1600';
+  if (s.includes('KG1100')) return 'KG1100';
+  if (s.includes('KG1000')) return 'KG1000';
+  // Deadlocks & others
+  if (s.includes('KG129(B)') || s.includes('EXTENDED')) return 'KG129(B)';
   if (s.includes('KG129')) return 'KG129';
+  if (s.includes('KG128')) return 'KG128';
   if (s.includes('KG512')) return 'KG512';
   if (s.includes('KG130')) return 'KG130';
   return 'Standard';
 }
+function msExtractHatch(vpHatch=''){
+  const s = String(vpHatch).toUpperCase();
+  const h=[];
+  ['KG164.5','KG166','KG166.N','KG167','KG167.N','KG171','KG171.N'].forEach(tag=>{if(s.includes(tag))h.push(tag)});
+  return h;
+}
+function msExtractVP(vpHatch=''){
+  const s = String(vpHatch).toUpperCase();
+  if (s.includes('P1330')) return 'VP P1330';
+  if (s.includes('P1335')) return 'VP P1335';
+  if (s.includes('P5050')) return 'VP P5050';
+  if (s.includes('P5055')) return 'VP P5055';
+  if (s.includes('P8050')) return 'VP P8050';
+  if (s.includes('P8055')) return 'VP P8055';
+  if (s.includes('VISILUX')) return 'VP Visilux';
+  if (s.includes('DURALUX OBLONG')) return 'VP Duralux Oblong';
+  if (s.includes('DURALUX SQUARE')) return 'VP Duralux Square';
+  return '';
+}
+function msExtractRebate(arch=''){
+  const s = String(arch).toUpperCase();
+  const m = s.match(/(\d+\s*\+\s*\d+|\d+)MM\s*REBATE/);
+  if(m) return m[0].replace(/\s+/g,'').replace('MM','mm').replace('REBATE',' rebate');
+  if (s.includes('4MM REBATE')) return '4mm rebate';
+  if (s.includes('8MM REBATE')) return '8mm rebate';
+  return '';
+}
+function msMakeNotes(row){
+  const notes=[];
+  // Shower
+  const room = String(row['ROOM DESCRIPTION']||'');
+  if (/SHOWER/i.test(room)) notes.push('Shower door.');
+  // Vision panel & hatch
+  const vph = String(row['VISION PANEL & HATCH CUT OUTS']||row['VISION PANELS & HATCH']||row['VISION PANELS & HATCH CUT OUTS']||'');
+  const vp = msExtractVP(vph);
+  if(vp) notes.push(vp + (vp.includes('P1330')? ' both leaves':' (main leaf only)').replace(' both leaves (main leaf only)',' (main leaf only)'));
+  const h=msExtractHatch(vph);
+  h.forEach(tag=>{notes.push((tag.includes('KG164.5')?'Secure tray hatch ':'Clinic hatch ')+tag)});
+  // Rebate
+  const arch = String(row['ARCHITRAVE TYPE']||'');
+  const rb = msExtractRebate(arch);
+  if(rb) notes.push(rb+' arch.');
+  // Electric lock on frame head cue (from ALARM/CLOSER/ELEC if contains FRAME HEAD)
+  const el = (String(row['ELECTRIC LOCKING']||'')+" "+String(row['ALARM TYPE']||'')).toUpperCase();
+  if (el.includes('FRAME HEAD')) notes.push('Electric lock frame head.');
+  // Extended backset cues
+  const lockRaw = String(row['LOCK CUT OUT / SLAVE LEAF LOCKS']||'');
+  if (/EXTENDED/i.test(lockRaw) || /KG129\(B\)/i.test(lockRaw)) notes.push('Extended backset deadlock.');
+  return notes.join(' ');
+}
+
+function findHeaderRow(rows, required) {
+  for(let i=0;i<rows.length;i++){
+    const line = rows[i].map(v=>String(v).trim().toUpperCase());
+    if (required.every(w=> line.includes(w))) return i;
+  }
+  return -1;
+}
+
+function collectTopMeta(rows){
+  // scan first 60 rows for MS Rev, Project Name, Project Ref
+  let name='', ref='';
+  rows.slice(0,60).forEach(r=>{
+    const l = r.map(x=>String(x).trim());
+    const s = l.join(' ').toUpperCase();
+    if (!window.msRevision){
+      const m=s.match(/MS\s*REV\s*([A-Z0-9]+)/); if(m) window.msRevision=m[1];
+    }
+    if(!name && /PROJECT NAME/i.test(s)){
+      const idx = l.findIndex(x=>/PROJECT NAME/i.test(x));
+      if(idx>=0){ name = (l[idx+1]|| l[idx+2]|| '').trim(); }
+    }
+    if(!ref && /PROJECT REFERENCE|PROJECT REF|PROJECT REFERENCE/i.test(s)){
+      const idx = l.findIndex(x=>/PROJECT REFERENCE|PROJECT REF/i.test(x));
+      if(idx>=0){ ref = (l[idx+1]|| l[idx+2]|| '').trim(); }
+    }
+  });
+  return {name, ref};
+}
+
 function importFromMS(ws) {
   const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+  const top = collectTopMeta(rows);
+  if(top.name) g2('projectName', top.name);
+  if(top.ref) g2('projectRef', top.ref);
+
   const must = ['DOOR NUMBER','ROOM DESCRIPTION','FIRE RATING'];
-  let H = -1;
-  for (let i=0;i<rows.length;i++){
-    const line = rows[i].map(v=>String(v).trim().toUpperCase());
-    if (must.every(w=>line.includes(w))) { H = i; break; }
-  }
+  const H = findHeaderRow(rows, must);
   if (H < 0) throw new Error('Could not find headers on MANUFACTURING SCHEDULE');
 
   const header = rows[H].map(h=>String(h).trim());
-  const idx = name => header.findIndex(h => h.toLowerCase() === name.toLowerCase());
-  const iDoorPack = idx('DOOR PACK');
-  const iRoom     = idx('ROOM DESCRIPTION');
-  const iFire     = idx('FIRE RATING');
-  const iAction   = idx('ACTION');
-  const iFrameMat = idx('FRAME MATERIAL') >= 0 ? idx('FRAME MATERIAL') : idx('FRAME MATERIAL AND FINISH');
-  const iCloser   = idx('CLOSER TYPE');
-  const iElec     = idx('ELECTRIC LOCKING');
-  const iAlarm    = idx('ALARM TYPE');
-  const iLockCO   = idx('LOCK CUT OUT / SLAVE LEAF LOCKS');
-  const iCode     = (idx('CODE') >= 0 ? idx('CODE')
-                    : (idx('Door Combination Code') >= 0 ? idx('Door Combination Code')
-                    : idx('DOOR NUMBER')));
+  const idx = key => header.findIndex(h => h.toLowerCase() === key.toLowerCase());
+  const get = (r, key) => { const i = idx(key); return i>=0 ? rows[r][i] : ''; };
 
-  const tmp = [];
-  for (let r = H+1; r < rows.length; r++) {
-    const room = iRoom>=0 ? String(rows[r][iRoom]).trim() : '';
-    const codeRaw = iCode>=0 ? String(rows[r][iCode]).trim() : '';
-    if (!room && !codeRaw) continue;
+  // Indexes (robust to variations)
+  const keys = {
+    pack: 'DOOR PACK',
+    room: 'ROOM DESCRIPTION',
+    fire: 'FIRE RATING',
+    action: 'ACTION',
+    frameMat: header.find(h=>/FRAME MATERIAL/i.test(h))||'FRAME MATERIAL',
+    closer: 'CLOSER TYPE',
+    elec: 'ELECTRIC LOCKING',
+    alarm: 'ALARM TYPE',
+    lockCO: 'LOCK CUT OUT / SLAVE LEAF LOCKS',
+    codePref1: 'CODE',
+    codePref2: 'Door Combination Code',
+    codeFallback: 'DOOR NUMBER',
+    vpHatch: (header.find(h=>/VISION PANEL.*HATCH/i.test(h))||'VISION PANEL & HATCH CUT OUTS'),
+    archType: 'ARCHITRAVE TYPE'
+  };
 
-    const pack    = iDoorPack>=0 ? parseInt(rows[r][iDoorPack]) || 1 : 1;
-    const fire    = msNormalizeFire(iFire>=0 ? rows[r][iFire] : '');
-    const type    = msNormalizeType(iAction>=0 ? rows[r][iAction] : '');
-    const finish  = msGuessFinish(iFrameMat>=0 ? rows[r][iFrameMat] : '');
-    const dtm     = msHasDTM({
-                      'ALARM TYPE': iAlarm>=0?rows[r][iAlarm]:'',
-                      'ELECTRIC LOCKING': iElec>=0?rows[r][iElec]:'',
-                      'CLOSER TYPE': iCloser>=0?rows[r][iCloser]:''
-                    }) ? 'Yes' : 'No';
-    const lock    = msNormalizeLock(iLockCO>=0 ? rows[r][iLockCO] : '');
-    const code    = codeRaw || '—';
+  const tmp=[];
+  for(let r=H+1;r<rows.length;r++){
+    const room = String(get(r,keys.room)).trim();
+    const rawCode = String(get(r,keys.codePref1)|| get(r,keys.codePref2) || get(r,keys.codeFallback)).trim();
+    if(!room && !rawCode) continue;
 
-    tmp.push({ qty:1, code, pack, room, type, fire, finish, dtm, lock, notes:'' });
+    const pack = parseInt(get(r,keys.pack))||1;
+    const fire = msNormalizeFire(get(r,keys.fire));
+    const type = msNormalizeType(get(r,keys.action));
+    const finish = msGuessFinish(get(r,keys.frameMat));
+    const dtm = msHasDTM({
+      'ALARM TYPE': get(r,keys.alarm), 'ELECTRIC LOCKING': get(r,keys.elec), 'CLOSER TYPE': get(r,keys.closer)
+    }) ? 'Yes':'No';
+    const lock = msNormalizeLock(get(r,keys.lockCO));
+    const notes = msMakeNotes({
+      'ROOM DESCRIPTION': room,
+      'VISION PANEL & HATCH CUT OUTS': get(r,keys.vpHatch),
+      'ARCHITRAVE TYPE': get(r,keys.archType),
+      'ELECTRIC LOCKING': get(r,keys.elec),
+      'ALARM TYPE': get(r,keys.alarm),
+      'LOCK CUT OUT / SLAVE LEAF LOCKS': get(r,keys.lockCO)
+    });
+
+    const code = rawCode || '—';
+    tmp.push({qty:1, code, pack, room, type, fire, finish, dtm, lock, notes});
   }
 
-  // aggregate identical lines
-  const keyOf = d => [d.code,d.pack,d.room,d.type,d.fire,d.finish,d.dtm,d.lock].join('\u00A7');
-  const map = new Map();
-  for (const d of tmp){
-    const k = keyOf(d);
-    if (!map.has(k)) map.set(k, {...d});
-    else map.get(k).qty += 1;
-  }
-  doors = Array.from(map.values());
-
-  currentJobId = null;
-  dirty(); renderAll(); valAll(); updateNotice(); updateBadge(); genAndShow();
+  // keep rows per door number (no aggregation) to mirror one-row-per-doorset in PDF
+  doors = tmp;
+  currentJobId = null; dirty(); renderAll(); valAll(); updateNotice(); updateBadge(); genAndShow();
   switchTab('form', document.querySelectorAll('.stab')[0]);
   try{ document.getElementById('importLog').innerHTML = '✅ Manufacturing Schedule detected and imported'; }catch{}
-  toast(`Manufacturing Schedule imported — ${doors.reduce((s,x)=>s+x.qty,0)} doors`);
+  toast(`Manufacturing Schedule imported — ${doors.length} doors`);
 }
-// ===== end helpers (added) =====
+// ===== end helpers (v3) =====
 
 // ═══════════ DOOR TABLE ═══════════
 let dragFrom=null;
@@ -1020,16 +1126,107 @@ function genAndShow(){
 }
 
 function buildDN(){
-  const d=collectForm();
-  const job=currentJobId?getJobById(currentJobId):null;
-  const dnId=job?.dnId||'DN-???';
-  const today=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
-  const ver=parseInt(d.version)||0;
-
-  // Warnings
-  const warns=[];
-  if(!d.deliveryDate)warns.push('⚠ No delivery date set');
-  else{const diff=(new Date(d.deliveryDate)-new Date())/864e5;if(diff<0)warns.push('⛔ Delivery date in past');else if(diff<2)warns.push('⚠ Less than 48hrs notice');}
+  const d = collectForm();
+  const job = currentJobId?getJobById(currentJobId):null;
+  const dnId = job?.dnId || 'DN-???';
+  const today = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
+  const ver = parseInt(d.version)||0;
+  const msRev = (window.msRevision||'P02');
+  // Totals
+  const packs = [...new Set(doors.map(x=>x.pack))].sort((a,b)=>a-b);
+  const totDoors = doors.reduce((s,x)=>s + (x.qty||1),0);
+  const fireCnt = {FD30S:0, FD60S:0, NFR:0};
+  doors.forEach(r=>{if(fireCnt[r.fire]!==undefined) fireCnt[r.fire]+= (r.qty||1)});
+  const dtmCnt = doors.filter(r=>r.dtm==='Yes').reduce((s,x)=>s+(x.qty||1),0);
+  const finSet = new Set(doors.map(r=>r.finish));
+  const finText = finSet.size===1 ? Array.from(finSet)[0]+ ' (all)' : 'Mixed';
+  const addr = [d.companyName,d.addr1,d.addr2,d.addr3,d.town,d.county,d.postcode].filter(Boolean);
+  // Build schedule grouped by pack
+  let dtbody='';
+  packs.forEach(p=>{
+    const rows = doors.filter(x=>x.pack===p); if(!rows.length) return;
+    const pt = rows.reduce((s,x)=>s+(x.qty||1),0);
+    dtbody += `<tr class="pg"><td colspan="9"><strong>Pack ${p} — ${pt} door${pt>1?'s':''}</strong></td></tr>`;
+    rows.forEach(r=>{
+      dtbody += `<tr>`+
+        `<td>${r.qty||1}</td>`+
+        `<td><strong>${esc(r.code)}</strong></td>`+
+        `<td>${esc(r.room||'')}</td>`+
+        `<td>${r.type}</td>`+
+        `<td><strong>${r.fire}</strong></td>`+
+        `<td>${r.finish}</td>`+
+        `<td>${r.dtm==='Yes'?'<strong>✓</strong>':'—'}</td>`+
+        `<td>${esc(r.lock||'—')}</td>`+
+        `<td style="color:#555">${esc(r.notes||'')}</td>`+
+      `</tr>`;
+    });
+  });
+  if(!dtbody) dtbody = '<tr><td colspan="9" style="text-align:center;color:#bbb;padding:10px">No doors entered</td></tr>';
+  // Header (two column) + goods summary mirroring template
+  const headerHTML = `
+  <div class="dn" id="dnDoc">
+    <div class="dn-hdr">
+      <div>
+        <div class="dn-title">DELIVERY NOTE KINGSWAY GROUP <span style="font-weight:700">${dnId}</span></div>
+        <div class="dn-sub">MS Rev ${msRev} &nbsp; Issued: ${today} &nbsp; Kingsway Group — Door Systems Division</div>
+      </div>
+    </div>
+    <div class="dn-g2">
+      <div class="dn-box">
+        <div class="dn-bxt">Project</div>
+        <div class="dn-r"><div class="dn-l">Project Name</div><div class="dn-v"><strong>${esc(d.projectName||'—')}</strong></div></div>
+        <div class="dn-r"><div class="dn-l">Project Ref</div><div class="dn-v">${esc(d.projectRef||'—')}</div></div>
+        <div class="dn-r"><div class="dn-l">MS Revision</div><div class="dn-v">${msRev}</div></div>
+        <div class="dn-r"><div class="dn-l">Sales Order Ref</div><div class="dn-v">${esc(d.salesOrderRef||'—')}</div></div>
+        <div class="dn-r"><div class="dn-l">KG Project Mgr</div><div class="dn-v">${esc(d.kgPM||'—')}</div></div>
+        <div class="dn-r"><div class="dn-l">Site Contact</div><div class="dn-v">${esc(d.siteContact||'—')}</div></div>
+      </div>
+      <div class="dn-box">
+        <div class="dn-bxt">Delivery</div>
+        <div class="dn-r"><div class="dn-l">Delivery Address</div><div class="dn-v">${addr.length?'<div class=\'dn-addr\'>'+addr.map(esc).join('<br>')+'</div>':'—'}</div></div>
+        <div class="dn-r"><div class="dn-l">Delivery Date</div><div class="dn-v"><strong>${fmt(d.deliveryDate)||'— TBC —'}</strong></div></div>
+        <div class="dn-r"><div class="dn-l">COLLECTION / DESPATCH</div><div class="dn-v">
+          <div>Collection Date — ${fmt(d.collectionDate)||'TBC'}</div>
+          <div>Collection Time — ${esc(d.collectionTime||'TBC')}</div>
+          <div>Transport Type — ${esc(d.transportType||'TBC')}</div>
+          <div>Unload — ${esc(d.unloadCap||'TBC')}</div>
+        </div></div>
+      </div>
+    </div>
+    <div class="dn-g2">
+      <div class="dn-box">
+        <div class="dn-bxt">Goods Summary</div>
+        <div class="dn-goods"><strong>Total Doors</strong> ${totDoors} doorsets across ${packs.length} packs</div>
+        <div class="dn-goods"><strong>Frame Finish</strong> ${esc(finText)}</div>
+        <div class="dn-goods"><strong>Fire Rating</strong> FD30S: ${fireCnt.FD30S} &nbsp; NFR: ${fireCnt.NFR}${fireCnt.FD60S? ' &nbsp; FD60S: '+fireCnt.FD60S:''}</div>
+        <div class="dn-goods"><strong>Elec. Lock</strong> ${dtmCnt} doors with DTM / electric locking</div>
+      </div>
+      <div class="dn-box">
+        <div class="dn-bxt">Special Instructions</div>
+        <div class="dn-goods">${esc(d.specialInstructions||'Psychiatric healthcare facility.
+All hardware anti-ligature grade.
+Coordinate access with ward manager.
+Contact site prior to delivery.')}</div>
+      </div>
+    </div>
+    <div class="dn-st">SECTION 1 – DOOR SCHEDULE</div>
+    <table class="dn-tbl"><thead><tr>
+      <th>Qty</th><th>Code</th><th>Room / Location</th><th>Type</th><th>Fire</th><th>Finish</th><th>DTM</th><th>Lock</th><th>Notes</th>
+    </tr></thead><tbody>${dtbody}</tbody></table>
+    <div class="dn-sign">
+      <div class="dn-sb"><div class="dn-sbt">Prepared / Checked By (KG)</div>
+        <div style="font-size:10.5px;color:#555">Name: ${esc(d.preparedBy||d.kgPM||'____________________________')}</div>
+        <div class="dn-sl">Signature & Date</div>
+      </div>
+      <div class="dn-sb"><div class="dn-sbt">Received By (Site)</div>
+        <div style="font-size:10.5px;color:#555">Name: ____________________________</div>
+        <div class="dn-sl">Signature & Date</div>
+      </div>
+    </div>
+    <div class="dn-ft">${dnId} · MS Rev ${msRev} · Generated ${today} · Kingsway Group Delivery Note Tool v2 · Please verify all quantities and specifications before despatch. Any discrepancies must be raised with the Project Manager immediately. This document should accompany the goods at all times during transit.</div>
+  </div>`;
+  return headerHTML;
+}
   if(!valDoors())warns.push('⚠ Door data has errors — review before despatch');
 
   // Door schedule — grouped by pack
